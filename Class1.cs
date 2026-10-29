@@ -136,7 +136,7 @@ namespace FusionDarkRP
                 case Job.Maire: return new Color(1f, 0.84f, 0f);
                 case Job.PatronPolice: return new Color(0.1f, 0.5f, 1f);
                 case Job.Police: return Color.blue;
-                case Job.AgentSecurite: return Color.cyan;
+                case Job.AgentSecurite: return new Color(0.6f, 0.8f, 1f);
                 case Job.Parrain: return new Color(0.5f, 0f, 0f);
                 case Job.Gangster: return Color.red;
                 case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
