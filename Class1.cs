@@ -7,6 +7,7 @@ using LabFusion.Network;
 using LabFusion.Representation;
 using LabFusion.SDK.Modules;
 using LabFusion.Utilities;
+using LabFusion.Data; // Résout les erreurs CS0246 (IFusionSerializable, FusionWriter, FusionReader)
 using UnityEngine;
 
 [assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "VotreNom")]
@@ -16,10 +17,8 @@ namespace FusionDarkRP
 {
     public class DarkRPModule : Module
     {
-        // Correction de l'erreur CS0534 : Fusion demande obligatoirement un nom pour le module
         public override string Name => "Fusion DarkRP";
 
-        // Correction de l'erreur CS0507 : 'protected' au lieu de 'public' exigé par l'API de Fusion
         protected override void OnModuleRegistered()
         {
             MelonLogger.Msg("Extension DarkRP enregistrée de force dans le moteur LabFusion !");
@@ -47,26 +46,26 @@ namespace FusionDarkRP
 
         private void SetupRadialMenu()
         {
-            var mainCat = MenuManager.CreateCategory("Fusion DarkRP", Color.yellow);
+            var mainCat = MenuManager.CreateCategory("Fusion DarkRP", UnityEngine.Color.yellow);
             
-            var publicCat = mainCat.CreateCategory("Jobs Publics", Color.white);
-            publicCat.CreateFunctionElement("Devenir Citoyen", Color.white, () => ChangerDeJobLocal(Job.Citoyen));
-            publicCat.CreateFunctionElement("Devenir Medecin", Color.green, () => ChangerDeJobLocal(Job.Medecin));
-            publicCat.CreateFunctionElement("Devenir Depanneur", Color.yellow, () => ChangerDeJobLocal(Job.Depanneur));
-            publicCat.CreateFunctionElement("Devenir Vendeur d'Armes", Color.cyan, () => ChangerDeJobLocal(Job.VendeurArmes));
+            var publicCat = mainCat.CreateCategory("Jobs Publics", UnityEngine.Color.white);
+            publicCat.CreateFunctionElement("Devenir Citoyen", UnityEngine.Color.white, () => ChangerDeJobLocal(Job.Citoyen));
+            publicCat.CreateFunctionElement("Devenir Medecin", UnityEngine.Color.green, () => ChangerDeJobLocal(Job.Medecin));
+            publicCat.CreateFunctionElement("Devenir Depanneur", UnityEngine.Color.yellow, () => ChangerDeJobLocal(Job.Depanneur));
+            publicCat.CreateFunctionElement("Devenir Vendeur d'Armes", UnityEngine.Color.cyan, () => ChangerDeJobLocal(Job.VendeurArmes));
 
-            var factionCat = mainCat.CreateCategory("Rejoindre Faction", Color.gray);
-            factionCat.CreateFunctionElement("Devenir Policier", Color.blue, () => ChangerDeJobLocal(Job.Police));
-            factionCat.CreateFunctionElement("Devenir Agent Securite", Color.cyan, () => ChangerDeJobLocal(Job.AgentSecurite));
-            factionCat.CreateFunctionElement("Devenir Gangster", Color.red, () => ChangerDeJobLocal(Job.Gangster));
-            factionCat.CreateFunctionElement("Devenir Fabricant", Color.red, () => ChangerDeJobLocal(Job.Fabricant));
-            factionCat.CreateFunctionElement("Devenir Garde du Corps", Color.gray, () => ChangerDeJobLocal(Job.GardeDuCorps));
+            var factionCat = mainCat.CreateCategory("Rejoindre Faction", UnityEngine.Color.gray);
+            factionCat.CreateFunctionElement("Devenir Policier", UnityEngine.Color.blue, () => ChangerDeJobLocal(Job.Police));
+            factionCat.CreateFunctionElement("Devenir Agent Securite", UnityEngine.Color.cyan, () => ChangerDeJobLocal(Job.AgentSecurite));
+            factionCat.CreateFunctionElement("Devenir Gangster", UnityEngine.Color.red, () => ChangerDeJobLocal(Job.Gangster));
+            factionCat.CreateFunctionElement("Devenir Fabricant", UnityEngine.Color.red, () => ChangerDeJobLocal(Job.Fabricant));
+            factionCat.CreateFunctionElement("Devenir Garde du Corps", UnityEngine.Color.gray, () => ChangerDeJobLocal(Job.GardeDuCorps));
 
-            var adminCat = mainCat.CreateCategory("Menu Admin Hôte", Color.red);
-            adminCat.CreateFunctionElement("[HÔTE] Assigner Maire", Color.gold, () => AssignerJobDepuisHote(Job.Maire));
-            adminCat.CreateFunctionElement("[HÔTE] Assigner Chef Police", Color.blue, () => AssignerJobDepuisHote(Job.PatronPolice));
-            adminCat.CreateFunctionElement("[HÔTE] Assigner Parrain", Color.red, () => AssignerJobDepuisHote(Job.Parrain));
-            adminCat.CreateFunctionElement("[HÔTE] Assigner Mercenaire", Color.black, () => AssignerJobDepuisHote(Job.Mercenaire));
+            var adminCat = mainCat.CreateCategory("Menu Admin Hôte", UnityEngine.Color.red);
+            adminCat.CreateFunctionElement("[HÔTE] Assigner Maire", UnityEngine.Color.gold, () => AssignerJobDepuisHote(Job.Maire));
+            adminCat.CreateFunctionElement("[HÔTE] Assigner Chef Police", UnityEngine.Color.blue, () => AssignerJobDepuisHote(Job.PatronPolice));
+            adminCat.CreateFunctionElement("[HÔTE] Assigner Parrain", UnityEngine.Color.red, () => AssignerJobDepuisHote(Job.Parrain));
+            adminCat.CreateFunctionElement("[HÔTE] Assigner Mercenaire", UnityEngine.Color.black, () => AssignerJobDepuisHote(Job.Mercenaire));
         }
 
         private void ChangerDeJobLocal(Job job)
@@ -136,29 +135,29 @@ namespace FusionDarkRP
             }
         }
 
-        public static Color ObtenirCouleurJob(Job job)
+        public static UnityEngine.Color ObtenirCouleurJob(Job job)
         {
             switch (job)
             {
-                case Job.Maire: return new Color(1f, 0.84f, 0f);
-                case Job.PatronPolice: return new Color(0f, 0.5f, 1f);
-                case Job.Police: return Color.blue;
-                case Job.AgentSecurite: return new Color(0.6f, 0.8f, 1f);
-                case Job.Parrain: return new Color(0.5f, 0f, 0f);
-                case Job.Gangster: return Color.red;
-                case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
-                case Job.VendeurArmes: return Color.orange;
-                case Job.GardeDuCorps: return Color.gray;
-                case Job.Depanneur: return Color.yellow;
-                case Job.Mercenaire: return new Color(0.3f, 0.1f, 0.5f);
-                case Job.Medecin: return Color.green;
-                default: return Color.white;
+                case Job.Maire: return new UnityEngine.Color(1f, 0.84f, 0f);
+                case Job.PatronPolice: return new UnityEngine.Color(0f, 0.5f, 1f);
+                case Job.Police: return UnityEngine.Color.blue;
+                case Job.AgentSecurite: return new UnityEngine.Color(0.6f, 0.8f, 1f);
+                case Job.Parrain: return new UnityEngine.Color(0.5f, 0f, 0f);
+                case Job.Gangster: return UnityEngine.Color.red;
+                case Job.Fabricant: return new UnityEngine.Color(1f, 0.4f, 0.4f);
+                case Job.VendeurArmes: return UnityEngine.Color.orange;
+                case Job.GardeDuCorps: return UnityEngine.Color.gray;
+                case Job.Depanneur: return UnityEngine.Color.yellow;
+                case Job.Mercenaire: return new UnityEngine.Color(0.3f, 0.1f, 0.5f);
+                case Job.Medecin: return UnityEngine.Color.green;
+                default: return UnityEngine.Color.white;
             }
         }
     }
 
-    // Remplacement complet des structures réseau par les types standards de LabFusion (résout l'erreur CS0115 et CS0246)
-    public class ChangementJobData : IFusionSerializable
+    // Ajout de IDisposable exigé par le moteur de sérialisation de LabFusion
+    public class ChangementJobData : IFusionSerializable, IDisposable
     {
         public byte SmallId;
         public byte JobId;
@@ -176,15 +175,19 @@ namespace FusionDarkRP
             SmallId = reader.ReadByte();
             JobId = reader.ReadByte();
         }
+
+        public void Dispose()
+        {
+            GC.SuppressFinalize(this);
+        }
     }
 
+    // Réécriture complète conforme pour éliminer les erreurs de surcharge (CS0115 et CS0534)
     public class ChangementJobMessage : MessageHandler
     {
-        public override byte? Tag => 124;
-
-        public override void HandleMessage(byte[] bytes, bool isServerHandled = false)
+        protected override void Handle(ReceivedMessage message)
         {
-            using (var reader = FusionReader.Create(bytes))
+            using (var reader = FusionReader.Create(message.Buffer))
             {
                 var data = reader.ReadFusionSerializable<ChangementJobData>();
                 MainMod.DicoJoueursJobs[data.SmallId] = (MainMod.Job)data.JobId;
