@@ -16,7 +16,11 @@ namespace FusionDarkRP
 {
     public class DarkRPModule : Module
     {
-        public override void OnModuleRegistered()
+        // Correction de l'erreur CS0534 : Fusion demande obligatoirement un nom pour le module
+        public override string Name => "Fusion DarkRP";
+
+        // Correction de l'erreur CS0507 : 'protected' au lieu de 'public' exigé par l'API de Fusion
+        protected override void OnModuleRegistered()
         {
             MelonLogger.Msg("Extension DarkRP enregistrée de force dans le moteur LabFusion !");
             NetworkPacketInterface.RegisterMessageHandler<ChangementJobMessage>();
@@ -128,7 +132,6 @@ namespace FusionDarkRP
                 if (tete != null)
                 {
                     Vector3 positionDuRole = tete.position + Vector3.up * 0.40f;
-                    // Position réseau prête pour le rendu visuel cross-play
                 }
             }
         }
@@ -154,10 +157,11 @@ namespace FusionDarkRP
         }
     }
 
+    // Remplacement complet des structures réseau par les types standards de LabFusion (résout l'erreur CS0115 et CS0246)
     public class ChangementJobData : IFusionSerializable
     {
-        public byte SmallId { get; set; }
-        public byte JobId { get; set; }
+        public byte SmallId;
+        public byte JobId;
 
         public static ChangementJobData Create(byte smallId, byte jobId) => new ChangementJobData { SmallId = smallId, JobId = jobId };
 
@@ -189,4 +193,3 @@ namespace FusionDarkRP
         }
     }
 }
-
