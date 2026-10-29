@@ -7,7 +7,7 @@ using LabFusion.Network;
 using LabFusion.Representation;
 using LabFusion.SDK.Modules;
 using LabFusion.Utilities;
-using LabFusion.Data; // Correction 1 : Ajout indispensable pour lier IFusionSerializable, FusionWriter et FusionReader
+using LabFusion.Data;
 using UnityEngine;
 
 [assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
@@ -146,7 +146,7 @@ namespace FusionDarkRP
                 case Job.Parrain: return new Color(0.5f, 0f, 0f);
                 case Job.Gangster: return Color.red;
                 case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
-                case Job.VendeurArmes: return new Color(1f, 0.5f, 0f);
+                case Color.yellow: return new Color(1f, 0.5f, 0f);
                 case Job.GardeDuCorps: return Color.gray;
                 case Job.Depanneur: return Color.yellow;
                 case Job.Mercenaire: return new Color(0.3f, 0.1f, 0.5f);
@@ -178,11 +178,10 @@ namespace FusionDarkRP
 
     public class ChangementJobMessage : MessageHandler
     {
-        // Correction 3 : La propriété Tag n'a plus besoin d'override direct ici, gérée en amont par l'architecture
-        public override byte? Tag => 124;
+        // Correction : Suppression de l'override obsolète de la propriété Tag pour cette structure de message
 
-        // Correction 2 : Utilisation de protected override void Handle(ReceivedMessage message) imposée par l'API
-        protected override void Handle(ReceivedMessage message)
+        // Correction : Changement du modificateur en 'public' pour correspondre exactement à l'architecture parente de LabFusion (Résout l'erreur CS0507)
+        public override void Handle(ReceivedMessage message)
         {
             using (var reader = FusionReader.Create(message.Buffer))
             {
