@@ -7,6 +7,7 @@ using LabFusion.Network;
 using LabFusion.Representation;
 using LabFusion.SDK.Modules;
 using LabFusion.Utilities;
+using LabFusion.Data; // AJOUT INDISPENSABLE POUR LES ERREURS 158, 165 ET 171
 using UnityEngine;
 
 [assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
@@ -177,10 +178,12 @@ namespace FusionDarkRP
 
     public class ChangementJobMessage : MessageHandler
     {
-        // Correction : Changement du modificateur d'accès pour correspondre à l'API publique de Fusion
-        public override void HandleMessage(byte[] bytes, bool isServerHandled = false)
+        // CORRECTION DE L'ERREUR 178 ET 181 : Structure d'implémentation réseau conforme
+        public override byte? Tag => 124;
+
+        public override void Handle(ReceivedMessage message)
         {
-            using (var reader = FusionReader.Create(bytes))
+            using (var reader = FusionReader.Create(message.Buffer))
             {
                 var data = reader.ReadFusionSerializable<ChangementJobData>();
                 MainMod.DicoJoueursJobs[data.SmallId] = (MainMod.Job)data.JobId;
