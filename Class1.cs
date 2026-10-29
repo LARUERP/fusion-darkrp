@@ -129,24 +129,23 @@ namespace FusionDarkRP
             }
         }
 
-        public static Color ObtenirCouleurJob(Job job)
+                public static UnityEngine.Color ObtenirCouleurJob(Job job)
         {
             switch (job)
             {
-                case Job.Maire: return new Color(1f, 0.84f, 0f);
-                case Job.PatronPolice: return new Color(0f, 0.5f, 1f);
-                case Job.Police: return Color.blue;
-                case Job.AgentSecurite: return new Color(0.6f, 0.8f, 1f);
-                case Job.Parrain: return new Color(0.5f, 0f, 0f);
-                case Job.Gangster: return Color.red;
-                case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
-                case Job.VendeurArmes: return Color.orange;
-                case Job.GardeDuCorps: return Color.gray;
-                case Job.Depanneur: return Color.yellow;
-                case Job.Mercenaire: return new Color(0.3f, 0.1f, 0.5f);
-                case Job.Medecin: return Color.green;
-                default: return Color.white;
+                case Job.Maire: return new UnityEngine.Color(1f, 0.84f, 0f);
+                case Job.PatronPolice: return new UnityEngine.Color(0f, 0.5f, 1f);
+                case Job.Police: return UnityEngine.Color.blue;
+                case Job.AgentSecurite: return new UnityEngine.Color(0.6f, 0.8f, 1f);
+                case Job.Parrain: return new UnityEngine.Color(0.5f, 0f, 0f);
+                case Job.Gangster: return UnityEngine.Color.red;
+                case Job.Fabricant: return new UnityEngine.Color(1f, 0.4f, 0.4f);
+                case Job.VendeurArmes: return UnityEngine.Color.orange;
+                case Job.GardeDuCorps: return UnityEngine.Color.gray;
+                case Job.Depanneur: return UnityEngine.Color.yellow;
+                case Job.Mercenaire: return new UnityEngine.Color(0.3f, 0.1f, 0.5f);
+                case Job.Medecin: return UnityEngine.Color.green;
+                default: return UnityEngine.Color.white;
             }
         }
-    }
-}
+        
