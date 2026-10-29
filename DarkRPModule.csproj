@@ -15,6 +15,12 @@
     <Reference Include="Il2CppInterop.Runtime">
       <HintPath>Libs/Il2CppInterop.Runtime.dll</HintPath>
     </Reference>
+    <Reference Include="BoneLib">
+      <HintPath>Libs/BoneLib.dll</HintPath>
+    </Reference>
+    <Reference Include="LabFusion">
+      <HintPath>Libs/LabFusion.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>Libs/UnityEngine.CoreModule.dll</HintPath>
     </Reference>
