@@ -4,12 +4,12 @@ using System.Reflection;
 using MelonLoader;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP", "1.0.0", "LARUERP")]
-[assembly: MelonGame("Stress Level Zero", "BONELAB")]
+[assembly: MelonPluginInfo(typeof(FusionDarkRP.MainPlugin), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
+[assembly: MelonPluginGame("Stress Level Zero", "BONELAB")]
 
 namespace FusionDarkRP
 {
-    public class MainMod : MelonMod
+    public class MainPlugin : MelonPlugin
     {
         public enum Job 
         { 
@@ -20,16 +20,26 @@ namespace FusionDarkRP
         
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
+        
+        private static object _mainCategory = null;
         private static bool _menuInitialise = false;
+        private static float _timerAttente = 0f;
 
-        // Cette fonction s'exécute obligatoirement et proprement dès que tu apparais sur une carte
-        public override void OnLevelWasLoaded(int level)
+        public override void OnApplicationStarted()
         {
+            MelonLogger.Msg("Plugin DarkRP (Mode Sécurité Système) chargé proprement !");
+        }
+
+        public override void OnUpdate()
+        {
+            // Sécurité anti-écran noir Quest 3 : On attend que le jeu tourne depuis 8 secondes en arrière-plan pour injecter la roulette
             if (!_menuInitialise)
             {
-                // Petit message dans la console pour vérifier que le mod s'éveille
-                MelonLogger.Msg("Carte chargée. Tentative d'initialisation du menu DarkRP...");
-                InitialiserMenuPropre();
+                _timerAttente += Time.deltaTime;
+                if (_timerAttente >= 8.0f)
+                {
+                    InitialiserMenuPropre();
+                }
             }
         }
 
@@ -37,45 +47,48 @@ namespace FusionDarkRP
         {
             try
             {
-                // Recherche de BoneLib de manière ultra-sécurisée
-                Assembly boneLib = null;
+                Assembly boneLibAssembly = null;
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    if (asm.GetName().Name == "BoneLib") { boneLib = asm; break; }
+                    if (asm.GetName().Name == "BoneLib") { boneLibAssembly = asm; break; }
                 }
 
-                if (boneLib == null) return;
+                if (boneLibAssembly == null)
+                {
+                    _timerAttente = 0f; // On réinitialise pour réessayer 8 secondes après si BoneLib charge tardivement
+                    return;
+                }
 
-                Type menuManager = boneLib.GetType("BoneLib.BoneMenu.MenuManager");
-                if (menuManager == null) return;
+                Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
+                if (menuManagerType == null) return;
 
-                MethodInfo createCategory = menuManager.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
-                if (createCategory == null) return;
+                MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
+                if (createCategoryMethod == null) return;
 
-                object mainCat = createCategory.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
-                if (mainCat == null) return;
+                _mainCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
+                if (_mainCategory == null) return;
 
-                Type catType = mainCat.GetType();
-                MethodInfo createSubCat = catType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
+                Type categoryType = _mainCategory.GetType();
+                MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
 
-                // 1. Métiers Publics
-                object publicCat = createSubCat.Invoke(mainCat, new object[] { "Jobs Publics", Color.white });
-                AjouterBouton(publicCat, "Devenir Citoyen", Job.Citoyen, Color.white);
-                AjouterBouton(publicCat, "Devenir Medecin", Job.Medecin, Color.green);
-                AjouterBouton(publicCat, "Devenir Depanneur", Job.Depanneur, Color.yellow);
-                AjouterBouton(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, Color.cyan);
+                // Section 1 : Emplois publics
+                object publicCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Jobs Publics", Color.white });
+                AjouterBoutonJob(publicCat, "Devenir Citoyen", Job.Citoyen, Color.white);
+                AjouterBoutonJob(publicCat, "Devenir Medecin", Job.Medecin, Color.green);
+                AjouterBoutonJob(publicCat, "Devenir Depanneur", Job.Depanneur, Color.yellow);
+                AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, Color.cyan);
 
-                // 2. Factions
-                object factionCat = createSubCat.Invoke(mainCat, new object[] { "Rejoindre Faction", Color.gray });
-                AjouterBouton(factionCat, "Devenir Policier", Job.Police, Color.blue);
-                AjouterBouton(factionCat, "Devenir Agent Securite", Job.AgentSecurite, Color.cyan);
-                AjouterBouton(factionCat, "Devenir Gangster", Job.Gangster, Color.red);
-                AjouterBouton(factionCat, "Devenir Fabricant", Job.Fabricant, Color.red);
-                AjouterBouton(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, Color.gray);
+                // Section 2 : Hiérarchies de Factions
+                object factionCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Rejoindre Faction", Color.gray });
+                AjouterBoutonJob(factionCat, "Devenir Policier", Job.Police, Color.blue);
+                AjouterBoutonJob(factionCat, "Devenir Agent Securite", Job.AgentSecurite, Color.cyan);
+                AjouterBoutonJob(factionCat, "Devenir Gangster", Job.Gangster, Color.red);
+                AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, Color.red);
+                AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, Color.gray);
 
-                // 3. Admin Hôte
-                object adminCat = createSubCat.Invoke(mainCat, new object[] { "Menu Admin Hote", Color.red });
-                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, new Color(1f, 0.84f, 0f));
+                // Section 3 : Commandement d'administration
+                object adminCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Menu Admin Hote", Color.red });
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, new Color(1.0f, 0.84f, 0.0f));
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", Job.PatronPolice, Color.blue);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, Color.red);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
@@ -86,67 +99,111 @@ namespace FusionDarkRP
             catch (Exception ex)
             {
                 MelonLogger.Error("Erreur d'injection : " + ex.Message);
+                _menuInitialise = true;
             }
         }
 
-        private void AjouterBouton(object cat, string nom, Job job, Color col)
+        private void AjouterBoutonJob(object subCategory, string label, Job job, Color color)
         {
-            if (cat == null) return;
-            MethodInfo btn = cat.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
-            btn?.Invoke(cat, new object[] { nom, col, (Action)(() => ChangerJobLocal(job)) });
+            if (subCategory == null) return;
+            MethodInfo createFunction = subCategory.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
+            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => ChangerDeJobLocal(job)) });
         }
 
-        private void AjouterBoutonAdmin(object cat, string nom, Job job, Color col)
+        private void AjouterBoutonAdmin(object subCategory, string label, Job job, Color color)
         {
-            if (cat == null) return;
-            MethodInfo btn = cat.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
-            btn?.Invoke(cat, new object[] { nom, col, (Action)(() => AssignerJobHote(job)) });
+            if (subCategory == null) return;
+            MethodInfo createFunction = subCategory.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
+            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AssignerJobDepuisHote(job)) });
         }
 
-        private void ChangerJobLocal(Job job)
+        private void ChangerDeJobLocal(Job job)
         {
             if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
             MonJobActuel = job;
-            SyncMetadata(job);
+            MettreAJourMetadataDynamique(job);
         }
 
-        private void AssignerJobHote(Job job)
-        {
-            // Attribution par l'hôte
-            MonJobActuel = job;
-            SyncMetadata(job);
-        }
-
-        private void SyncMetadata(Job job)
+        private void AssignerJobDepuisHote(Job jobPatron)
         {
             try
             {
-                Assembly fusion = null;
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asm.GetName().Name == "LabFusion") { fusion = asm; break; }
-                }
-                if (fusion == null) return;
+                Assembly fusionAssembly = ObtenirFusionAssembly();
+                if (fusionAssembly == null) return;
 
-                Type netInfo = fusion.GetType("LabFusion.Network.NetworkInfo");
-                PropertyInfo hasServer = netInfo?.GetProperty("HasServer", BindingFlags.Public | BindingFlags.Static);
-                if (hasServer == null || !(bool)hasServer.GetValue(null)) return;
+                Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
+                PropertyInfo isServerProp = networkInfoType?.GetProperty("IsServer", BindingFlags.Public | BindingFlags.Static);
+                bool isServer = isServerProp != null && (bool)isServerProp.GetValue(null);
 
-                Type idManager = fusion.GetType("LabFusion.Utilities.PlayerIdManager");
-                byte localId = (byte)idManager?.GetProperty("LocalSmallId", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                if (!isServer) return;
 
-                Type sender = fusion.GetType("LabFusion.Network.PlayerSender");
-                MethodInfo sendReq = sender?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
-                
-                sendReq?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
+                MonJobActuel = jobPatron;
+                MettreAJourMetadataDynamique(jobPatron);
             }
             catch {}
         }
 
-        // Interface 2D d'Unity d'origine (IMGUI) - S'affiche à coup sûr sur l'écran
+        private void MettreAJourMetadataDynamique(Job job)
+        {
+            try
+            {
+                Assembly fusionAssembly = ObtenirFusionAssembly();
+                if (fusionAssembly == null) return;
+
+                Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
+                PropertyInfo hasServerProp = networkInfoType?.GetProperty("HasServer", BindingFlags.Public | BindingFlags.Static);
+                if (hasServerProp == null || !(bool)hasServerProp.GetValue(null)) return;
+
+                Type playerIdManagerType = fusionAssembly.GetType("LabFusion.Utilities.PlayerIdManager");
+                PropertyInfo localSmallIdProp = playerIdManagerType?.GetProperty("LocalSmallId", BindingFlags.Public | BindingFlags.Static);
+                if (localSmallIdProp == null) return;
+                byte localId = (byte)localSmallIdProp.GetValue(null);
+
+                Type playerSenderType = fusionAssembly.GetType("LabFusion.Network.PlayerSender");
+                MethodInfo sendRequest = playerSenderType?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
+                
+                sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
+            }
+            catch {}
+        }
+
+        private Assembly ObtenirFusionAssembly()
+        {
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.GetName().Name == "LabFusion") return asm;
+            }
+            return null;
+        }
+
+        // Rendu de l'interface en bas à gauche de la vue du joueur (IMGUI)
         public override void OnGUI()
         {
-            GUI.Label(new Rect(40, Screen.height - 50, 400, 40), $"<b>VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}</b>");
+            GUIStyle style = new GUIStyle();
+            style.fontSize = 24;
+            style.richText = true;
+            style.normal.textColor = ObtenirCouleurJob(MonJobActuel);
+            GUI.Label(new Rect(30, Screen.height - 60, 400, 50), $"<b>VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}</b>", style);
+        }
+
+        public static Color ObtenirCouleurJob(Job job)
+        {
+            switch (job)
+            {
+                case Job.Maire: return new Color(1f, 0.84f, 0f);
+                case Job.PatronPolice: return new Color(0f, 0.5f, 1f);
+                case Job.Police: return Color.blue;
+                case Job.AgentSecurite: return new Color(0.6f, 0.8f, 1f);
+                case Job.Parrain: return new Color(0.5f, 0f, 0f);
+                case Job.Gangster: return Color.red;
+                case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
+                case Job.VendeurArmes: return new Color(1f, 0.5f, 0f);
+                case Job.GardeDuCorps: return Color.gray;
+                case Job.Depanneur: return Color.yellow;
+                case Job.Mercenaire: return new Color(0.3f, 0.1f, 0.5f);
+                case Job.Medecin: return Color.green;
+                default: return Color.white;
+            }
         }
     }
 }
