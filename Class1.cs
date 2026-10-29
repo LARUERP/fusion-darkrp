@@ -94,7 +94,6 @@ namespace FusionDarkRP
         {
             if (!NetworkInfo.HasServer) return;
 
-            // Envoi via l'API primitive universelle par chaîne de caractères pour s'affranchir des conflits de versions de DLLs
             string messagePayload = $"{PlayerIdManager.LocalSmallId}:{((byte)job)}";
             MelonLogger.Msg($"[Réseau DarkRP] Diffusion du rôle local : {messagePayload}");
         }
@@ -147,15 +146,16 @@ namespace FusionDarkRP
         }
     }
 
-    // Réécriture réseau conforme aux versions historiques de LabFusion présentes dans votre archive Libs/
+    // Résolution complète de l'erreur CS0534 : Implémentation explicite de l'override public exigé par le MessageHandler de LabFusion
     public class ChangementJobMessage : MessageHandler
     {
-        // Enlèvement de l'override problématique de Tag et réalignement sur l'ancienne méthode de réception standard
-        public void OnMessageReceived(byte[] bytes, bool isServerHandled)
+        public override void Handle(ReceivedMessage message)
         {
             try
             {
-                string payload = System.Text.Encoding.UTF8.GetString(bytes);
+                if (message == null || message.Buffer == null) return;
+                
+                string payload = System.Text.Encoding.UTF8.GetString(message.Buffer);
                 string[] parts = payload.Split(':');
                 if (parts.Length == 2)
                 {
@@ -166,9 +166,9 @@ namespace FusionDarkRP
                     MelonLogger.Msg($"[Sync Réseau] Joueur {smallId} est passé : {(MainMod.Job)jobId}");
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Gestion de sécurité pour la boucle réseau
+                MelonLogger.Error($"[Erreur Réseau] Échec de la lecture du job : {ex.Message}");
             }
         }
     }
