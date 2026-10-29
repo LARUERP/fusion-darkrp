@@ -7,9 +7,10 @@ using LabFusion.Network;
 using LabFusion.Representation;
 using LabFusion.SDK.Modules;
 using LabFusion.Utilities;
+using LabFusion.Data;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "VotreNom")]
+[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
 [assembly: MelonGame("Stress Level Zero", "BONELAB")]
 
 namespace FusionDarkRP
@@ -20,7 +21,8 @@ namespace FusionDarkRP
 
         protected override void OnModuleRegistered()
         {
-            MelonLogger.Msg("Extension DarkRP enregistrée avec succès !");
+            MelonLogger.Msg("Extension DarkRP enregistrée avec succès dans l'API LabFusion !");
+            NetworkPacketInterface.RegisterMessageHandler<ChangementJobMessage>();
         }
     }
 
@@ -94,8 +96,16 @@ namespace FusionDarkRP
         {
             if (!NetworkInfo.HasServer) return;
 
-            string messagePayload = $"{PlayerIdManager.LocalSmallId}:{((byte)job)}";
-            MelonLogger.Msg($"[Réseau Sync] Envoi du rôle : {messagePayload}");
+            using (var writer = FusionWriter.Create())
+            {
+                var data = ChangementJobData.Create(PlayerIdManager.LocalSmallId, (byte)job);
+                writer.Write(data);
+
+                using (var message = FusionMessage.Create(NetworkChannel.Reliable, writer))
+                {
+                    MessageSender.BroadcastMessage(message);
+                }
+            }
         }
 
         public override void OnGUI()
@@ -121,6 +131,7 @@ namespace FusionDarkRP
                 if (tete != null)
                 {
                     Vector3 positionDuRole = tete.position + Vector3.up * 0.40f;
+                    // Emplacement prêt pour recevoir l'affichage 3D synchro
                 }
             }
         }
@@ -136,12 +147,47 @@ namespace FusionDarkRP
                 case Job.Parrain: return new Color(0.5f, 0f, 0f);
                 case Job.Gangster: return Color.red;
                 case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
-                case Job.VendeurArmes: return new Color(1f, 0.5f, 0f);
+                case Job.VendeurArmes: return new Color(1f, 0.5f, 0f); // Orange corrigé
                 case Job.GardeDuCorps: return Color.gray;
                 case Job.Depanneur: return Color.yellow;
-                case Job.Mercenaire: return new Color(0.3f, 0.1f, 0.5f);
+                case Job.Mercenaire: return new Color(0.3f, 0.1f, 0.5f); // Violet foncé
                 case Job.Medecin: return Color.green;
                 default: return Color.white;
+            }
+        }
+    }
+
+    public class ChangementJobData : IFusionSerializable
+    {
+        public byte SmallId;
+        public byte JobId;
+
+        public static ChangementJobData Create(byte smallId, byte jobId) => new ChangementJobData { SmallId = smallId, JobId = jobId };
+
+        public void Serialize(FusionWriter writer)
+        {
+            writer.Write(SmallId);
+            writer.Write(JobId);
+        }
+
+        public void Deserialize(FusionReader reader)
+        {
+            SmallId = reader.ReadByte();
+            JobId = reader.ReadByte();
+        }
+    }
+
+    public class ChangementJobMessage : MessageHandler
+    {
+        public override byte? Tag => 124;
+
+        protected override void Handle(ReceivedMessage message)
+        {
+            using (var reader = FusionReader.Create(message.Buffer))
+            {
+                var data = reader.ReadFusionSerializable<ChangementJobData>();
+                MainMod.DicoJoueursJobs[data.SmallId] = (MainMod.Job)data.JobId;
+                MelonLogger.Msg($"[Sync Réseau] Joueur {data.SmallId} est passé : {(MainMod.Job)data.JobId}");
             }
         }
     }
