@@ -9,6 +9,9 @@
     <Reference Include="MelonLoader">
       <HintPath>Libs/MelonLoader.dll</HintPath>
     </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>Libs/Il2Cppmscorlib.dll</HintPath>
+    </Reference>
     <Reference Include="BoneLib">
       <HintPath>Libs/BoneLib.dll</HintPath>
     </Reference>
