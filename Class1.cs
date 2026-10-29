@@ -7,7 +7,7 @@ using LabFusion.Network;
 using LabFusion.Representation;
 using LabFusion.SDK.Modules;
 using LabFusion.Utilities;
-using LabFusion.Data; // Résout les erreurs CS0246 (IFusionSerializable, FusionWriter, FusionReader)
+using LabFusion.Data;
 using UnityEngine;
 
 [assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "VotreNom")]
@@ -156,8 +156,7 @@ namespace FusionDarkRP
         }
     }
 
-    // Ajout de IDisposable exigé par le moteur de sérialisation de LabFusion
-    public class ChangementJobData : IFusionSerializable, IDisposable
+    public class ChangementJobData : IFusionSerializable
     {
         public byte SmallId;
         public byte JobId;
@@ -175,16 +174,13 @@ namespace FusionDarkRP
             SmallId = reader.ReadByte();
             JobId = reader.ReadByte();
         }
-
-        public void Dispose()
-        {
-            GC.SuppressFinalize(this);
-        }
     }
 
-    // Réécriture complète conforme pour éliminer les erreurs de surcharge (CS0115 et CS0534)
     public class ChangementJobMessage : MessageHandler
     {
+        // Correction de l'erreur réseau : attribution du Tag pour enregistrement unique du message LabFusion
+        public override byte? Tag => 124;
+
         protected override void Handle(ReceivedMessage message)
         {
             using (var reader = FusionReader.Create(message.Buffer))
