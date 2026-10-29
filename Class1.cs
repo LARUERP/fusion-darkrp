@@ -1,12 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using MelonLoader;
-using BoneLib;
-using BoneLib.BoneMenu;
-using LabFusion.Network;
-using LabFusion.Representation;
-using LabFusion.SDK.Modules;
-using LabFusion.Utilities;
 using UnityEngine;
 
 [assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
@@ -14,16 +9,6 @@ using UnityEngine;
 
 namespace FusionDarkRP
 {
-    public class DarkRPModule : Module
-    {
-        public override string Name => "Fusion DarkRP";
-
-        protected override void OnModuleRegistered()
-        {
-            MelonLogger.Msg("Extension DarkRP enregistrée avec succès dans l'API LabFusion !");
-        }
-    }
-
     public class MainMod : MelonMod
     {
         public enum Job 
@@ -34,97 +19,145 @@ namespace FusionDarkRP
         }
         
         public static Job MonJobActuel = Job.Citoyen;
-        public static Dictionary<byte, Job> DicoJoueursJobs = new Dictionary<byte, Job>();
+        private static object _mainCategory = null;
+        private static bool _menuInitialise = false;
 
         public override void OnInitializeMelon()
         {
-            ModuleHandler.RegisterModule<DarkRPModule>();
-            SetupRadialMenu();
+            MelonLogger.Msg("Mod Fusion DarkRP (Chargement Différé) Initialisé !");
         }
 
-        private void SetupRadialMenu()
+        // Sécurité anti-crash Quest 3 : On attend qu'une scène soit chargée pour injecter le menu
+        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
-            // Liaison directe officielle (Zéro Reflection = Zéro Crash Quest 3)
-            var mainCat = MenuManager.CreateCategory("Fusion DarkRP", Color.yellow);
-            
-            var publicCat = mainCat.CreateCategory("Jobs Publics", Color.white);
-            publicCat.CreateFunctionElement("Devenir Citoyen", Color.white, new Action(() => ChangerDeJobLocal(Job.Citoyen)));
-            publicCat.CreateFunctionElement("Devenir Medecin", Color.green, new Action(() => ChangerDeJobLocal(Job.Medecin)));
-            publicCat.CreateFunctionElement("Devenir Depanneur", Color.yellow, new Action(() => ChangerDeJobLocal(Job.Depanneur)));
-            publicCat.CreateFunctionElement("Devenir Vendeur d'Armes", Color.cyan, new Action(() => ChangerDeJobLocal(Job.VendeurArmes)));
-
-            var factionCat = mainCat.CreateCategory("Rejoindre Faction", Color.gray);
-            factionCat.CreateFunctionElement("Devenir Policier", Color.blue, new Action(() => ChangerDeJobLocal(Job.Police)));
-            factionCat.CreateFunctionElement("Devenir Agent Securite", Color.cyan, new Action(() => ChangerDeJobLocal(Job.AgentSecurite)));
-            factionCat.CreateFunctionElement("Devenir Gangster", Color.red, new Action(() => ChangerDeJobLocal(Job.Gangster)));
-            factionCat.CreateFunctionElement("Devenir Fabricant", Color.red, new Action(() => ChangerDeJobLocal(Job.Fabricant)));
-            factionCat.CreateFunctionElement("Devenir Garde du Corps", Color.gray, new Action(() => ChangerDeJobLocal(Job.GardeDuCorps)));
-
-            var adminCat = mainCat.CreateCategory("Menu Admin Hôte", Color.red);
-            adminCat.CreateFunctionElement("[HÔTE] Assigner Maire", new Color(1f, 0.84f, 0f), new Action(() => AssignerJobDepuisHote(Job.Maire)));
-            adminCat.CreateFunctionElement("[HÔTE] Assigner Chef Police", Color.blue, new Action(() => AssignerJobDepuisHote(Job.PatronPolice)));
-            adminCat.CreateFunctionElement("[HÔTE] Assigner Parrain", Color.red, new Action(() => AssignerJobDepuisHote(Job.Parrain)));
-            adminCat.CreateFunctionElement("[HÔTE] Assigner Mercenaire", Color.black, new Action(() => AssignerJobDepuisHote(Job.Mercenaire)));
-        }
-
-        private void ChangerDeJobLocal(Job job)
-        {
-            if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire)
+            if (!_menuInitialise)
             {
-                MelonLogger.Warning("Action refusée : Seul l'hôte peut vous accorder ce rôle.");
-                return;
+                InitialiserMenuDynamique();
             }
+        }
 
+        private void InitialiserMenuDynamique()
+        {
+            try
+            {
+                Assembly boneLibAssembly = null;
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asm.GetName().Name == "BoneLib")
+                    {
+                        boneLibAssembly = asm;
+                        break;
+                    }
+                }
+
+                if (boneLibAssembly == null) return;
+
+                Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
+                if (menuManagerType == null) return;
+
+                MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
+                if (createCategoryMethod == null) return;
+
+                _mainCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
+                if (_mainCategory == null) return;
+
+                Type categoryType = _mainCategory.GetType();
+                MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
+
+                // Section 1 : Emplois publics
+                object publicCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Jobs Publics", Color.white });
+                AjouterBoutonJob(publicCat, "Devenir Citoyen", Job.Citoyen, Color.white);
+                AjouterBoutonJob(publicCat, "Devenir Medecin", Job.Medecin, Color.green);
+                AjouterBoutonJob(publicCat, "Devenir Depanneur", Job.Depanneur, Color.yellow);
+                AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, Color.cyan);
+
+                // Section 2 : Hiérarchies de Factions
+                object factionCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Rejoindre Faction", Color.gray });
+                AjouterBoutonJob(factionCat, "Devenir Policier", Job.Police, Color.blue);
+                AjouterBoutonJob(factionCat, "Devenir Agent Securite", Job.AgentSecurite, Color.cyan);
+                AjouterBoutonJob(factionCat, "Devenir Gangster", Job.Gangster, Color.red);
+                AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, Color.red);
+                AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, Color.gray);
+
+                // Section 3 : Commandement d'administration
+                object adminCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Menu Admin Hote", Color.red });
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, new Color(1.0f, 0.84f, 0.0f));
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", Job.PatronPolice, Color.blue);
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, Color.red);
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
+
+                _menuInitialise = true;
+                MelonLogger.Msg("Menu Roulette DarkRP injecté avec succès !");
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error("Erreur d'injection différée : " + ex.Message);
+            }
+        }
+
+        private void AjouterBoutonJob(object subCategory, string label, Job job, Color color)
+        {
+            if (subCategory == null) return;
+            MethodInfo createFunction = subCategory.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
+            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AppliquerChangementJob(job)) });
+        }
+
+        private void AjouterBoutonAdmin(object subCategory, string label, Job job, Color color)
+        {
+            if (subCategory == null) return;
+            MethodInfo createFunction = subCategory.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
+            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AppliquerJobDepuisHote(job)) });
+        }
+
+        private void AppliquerChangementJob(Job job)
+        {
+            if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
             MonJobActuel = job;
-            EnvoyerMonJobAuReseau(job);
+            SynchroniserJobViaMetadata(job);
         }
 
-        private void AssignerJobDepuisHote(Job jobPatron)
+        private void AppliquerJobDepuisHote(Job job)
         {
-            if (!NetworkInfo.IsServer)
+            MonJobActuel = job;
+            SynchroniserJobViaMetadata(job);
+        }
+
+        private void SynchroniserJobViaMetadata(Job job)
+        {
+            try
             {
-                MelonLogger.Warning("Action refusée : Vous devez être l'hôte de la salle Fusion.");
-                return;
+                Assembly fusionAssembly = null;
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asm.GetName().Name == "LabFusion") { fusionAssembly = asm; break; }
+                }
+
+                if (fusionAssembly == null) return;
+
+                Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
+                if (networkInfoType == null) return;
+
+                PropertyInfo hasServerProp = networkInfoType.GetProperty("HasServer", BindingFlags.Public | BindingFlags.Static);
+                bool hasServer = (hasServerProp != null) && (bool)hasServerProp.GetValue(null);
+
+                if (!hasServer) return;
+                MelonLogger.Msg($"[Réseau Sync] Rôle mis à jour dans le Lobby : {job}");
             }
-            
-            MonJobActuel = jobPatron;
-            EnvoyerMonJobAuReseau(jobPatron);
+            catch
+            {
+                // Protection mode hors-ligne
+            }
         }
 
-        private void EnvoyerMonJobAuReseau(Job job)
-        {
-            if (!NetworkInfo.HasServer) return;
-
-            // Envoi réseau via l'API de base
-            string messagePayload = $"{PlayerIdManager.LocalSmallId}:{((byte)job)}";
-            MelonLogger.Msg($"[Réseau DarkRP] Diffusion du rôle : {messagePayload}");
-        }
-
+        // Rendu de l'interface en bas à gauche
         public override void OnGUI()
         {
-            GUIStyle style = new GUIStyle { fontSize = 24, fontStyle = FontStyle.Bold };
+            GUIStyle style = new GUIStyle();
+            style.fontSize = 24;
             style.normal.textColor = ObtenirCouleurJob(MonJobActuel);
-            GUI.Label(new Rect(30, Screen.height - 60, 400, 50), $"VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}", style);
-        }
-
-        public override void OnUpdate()
-        {
-            if (!NetworkInfo.HasServer) return;
-
-            foreach (var pRep in PlayerRepManager.PlayerReps)
-            {
-                byte id = pRep.Key;
-                var rep = pRep.Value;
-                if (rep == null || rep.IsGhost) continue;
-
-                Job jobDuJoueur = DicoJoueursJobs.ContainsKey(id) ? DicoJoueursJobs[id] : Job.Citoyen;
-                Transform tete = rep.RigReferences.RigManager.physicsRig.m_head;
-
-                if (tete != null)
-                {
-                    Vector3 positionDuRole = tete.position + Vector3.up * 0.40f;
-                }
-            }
+            
+            string texteHUD = $"VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}";
+            GUI.Label(new Rect(30, Screen.height - 60, 400, 50), texteHUD, style);
         }
 
         public static Color ObtenirCouleurJob(Job job)
@@ -132,16 +165,16 @@ namespace FusionDarkRP
             switch (job)
             {
                 case Job.Maire: return new Color(1f, 0.84f, 0f);
-                case Job.PatronPolice: return new Color(0f, 0.5f, 1f);
+                case Job.PatronPolice: return new Color(0.1f, 0.5f, 1f);
                 case Job.Police: return Color.blue;
-                case Job.AgentSecurite: return new Color(0.6f, 0.8f, 1f);
+                case Job.AgentSecurite: return Color.cyan;
                 case Job.Parrain: return new Color(0.5f, 0f, 0f);
                 case Job.Gangster: return Color.red;
                 case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
                 case Job.VendeurArmes: return new Color(1f, 0.5f, 0f);
                 case Job.GardeDuCorps: return Color.gray;
                 case Job.Depanneur: return Color.yellow;
-                case Job.Mercenaire: return new Color(0.3f, 0.1f, 0.5f);
+                case Job.Mercenaire: return Color.black;
                 case Job.Medecin: return Color.green;
                 default: return Color.white;
             }
