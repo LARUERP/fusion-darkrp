@@ -24,19 +24,25 @@ namespace FusionDarkRP
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP Initialisé au démarrage !");
+            MelonLogger.Msg("Mod DarkRP chargé de force (Mode Sécurité Manuel Actif).");
         }
 
-        // Sécurité Quest 3 : Le menu ne s'injecte pas au démarrage (zéro écran noir), il attend la première scène du jeu
-        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
+        // LE SECRET ANTI-CRASH : Plus aucune exécution automatique dans les scènes.
+        // Tu lances ta carte, et une fois que tu peux marcher, tu appuies sur X ou Y pour créer le menu !
+        public override void OnUpdate()
         {
             if (!_menuInitialise)
             {
-                InitialiserMenuDynamique();
+                // Input.GetKeyDown(KeyCode.JoystickButton2) correspond au bouton X ou Y de la manette gauche Oculus
+                if (Input.GetKeyDown(KeyCode.JoystickButton2) || Input.GetKeyDown(KeyCode.JoystickButton3))
+                {
+                    MelonLogger.Msg("Activation manuelle du menu demandée par le joueur...");
+                    ForcerInitialisationMenu();
+                }
             }
         }
 
-        private void InitialiserMenuDynamique()
+        private void ForcerInitialisationMenu()
         {
             try
             {
@@ -50,7 +56,11 @@ namespace FusionDarkRP
                     }
                 }
 
-                if (boneLibAssembly == null) return;
+                if (boneLibAssembly == null)
+                {
+                    MelonLogger.Warning("Liaison impossible : BoneLib n'est pas encore prêt en mémoire.");
+                    return;
+                }
 
                 Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
                 if (menuManagerType == null) return;
@@ -87,11 +97,11 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
                 _menuInitialise = true;
-                MelonLogger.Msg("Menu Roulette DarkRP injecté avec succès et sans crash !");
+                MelonLogger.Msg("✅ Menu Roulette DarkRP créé avec succès ! Tu peux ouvrir ton BoneMenu.");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Erreur d'injection : " + ex.Message);
+                MelonLogger.Error("Erreur lors de l'activation : " + ex.Message);
             }
         }
 
@@ -113,16 +123,14 @@ namespace FusionDarkRP
         {
             if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
             MonJobActuel = job;
-            MelonLogger.Msg($"[DarkRP Local] Métier changé : {job}");
         }
 
         private void AppliquerJobDepuisHote(Job job)
         {
             MonJobActuel = job;
-            MelonLogger.Msg($"[DarkRP Hôte] Métier assigné : {job}");
         }
 
-        // Rendu de l'affichage en bas à gauche de l'écran du Quest 3
+        // Rendu IMGUI 2D natif (Zéro dépendance, ultra-stable)
         public override void OnGUI()
         {
             GUIStyle style = new GUIStyle();
