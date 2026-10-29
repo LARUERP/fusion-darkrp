@@ -23,12 +23,11 @@ namespace FusionDarkRP
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP (Liaison Universelle) Initialisé !");
+            MelonLogger.Msg("Mod Fusion DarkRP (Liaison Autonome) Initialisé !");
         }
 
         public override void OnLateInitializeMelon()
         {
-            // Exécution décalée pour s'assurer que BoneLib est bien instancié en mémoire dans le Quest
             InitialiserMenuDynamique();
         }
 
@@ -48,7 +47,7 @@ namespace FusionDarkRP
 
                 if (boneLibAssembly == null)
                 {
-                    MelonLogger.Warning("BoneLib introuvable en mémoire. Mode dégradé actif.");
+                    MelonLogger.Warning("BoneLib introuvable en mémoire.");
                     return;
                 }
 
@@ -58,7 +57,6 @@ namespace FusionDarkRP
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
                 if (createCategoryMethod == null) return;
 
-                // Création du point d'ancrage principal dans la roulette
                 _mainCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
                 if (_mainCategory == null) return;
 
@@ -111,48 +109,13 @@ namespace FusionDarkRP
         {
             if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
             MonJobActuel = job;
-            SynchroniserJobViaMetadata(job);
+            MelonLogger.Msg($"[DarkRP Local] Métier changé : {job}");
         }
 
         private void AppliquerJobDepuisHote(Job job)
         {
-            // Vérification de sécurité locale
             MonJobActuel = job;
-            SynchroniserJobViaMetadata(job);
-        }
-
-        private void SynchroniserJobViaMetadata(Job job)
-        {
-            // Utilisation de la synchronisation P2P via la mise à jour des métadonnées du joueur local
-            try
-            {
-                Assembly fusionAssembly = null;
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asm.GetName().Name == "LabFusion") { fusionAssembly = asm; break; }
-                }
-
-                if (fusionAssembly == null) return;
-
-                Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
-                if (networkInfoType == null) return;
-
-                PropertyInfo hasServerProp = networkInfoType.GetProperty("HasServer", BindingFlags.Public | BindingFlags.Static);
-                bool hasServer = (hasServerProp != null) && (bool)hasServerProp.GetValue(null);
-
-                if (!hasServer) return;
-
-                // Enregistrement du rôle dans les métadonnées de Fusion pour diffusion automatique aux clients PC/Quest
-                Type playerMetadataType = fusionAssembly.GetType("LabFusion.Utilities.PlayerIdManager");
-                if (playerMetadataType == null) return;
-
-                // Journalisation de la mise à jour locale
-                MelonLogger.Msg($"[Réseau Sync] Métier mis à jour : {job}");
-            }
-            catch
-            {
-                // Protection contre le basculement hors-ligne
-            }
+            MelonLogger.Msg($"[DarkRP Hôte] Attribution forcée du métier : {job}");
         }
 
         // Affichage HUD 2D (Bas à gauche du Quest 3)
@@ -162,7 +125,6 @@ namespace FusionDarkRP
             style.fontSize = 24;
             style.normal.textColor = ObtenirCouleurJob(MonJobActuel);
             
-            // Équivalent textuel à FontStyle.Bold pour éviter les liaisons de modules optionnels
             string texteHUD = $"VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}";
             GUI.Label(new Rect(30, Screen.height - 60, 400, 50), texteHUD, style);
         }
