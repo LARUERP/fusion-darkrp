@@ -33,7 +33,6 @@ namespace FusionDarkRP
 
         private void SetupRadialMenu()
         {
-            // Création directe et stable via l'API officielle de BoneLib
             var mainCat = MenuManager.CreateCategory("Fusion DarkRP", Color.yellow);
             
             var publicCat = mainCat.CreateCategory("Jobs Publics", Color.white);
@@ -84,21 +83,20 @@ namespace FusionDarkRP
         {
             if (!NetworkInfo.HasServer) return;
 
-            // LE SYSTEME RESEAU INCRACHABLE : On injecte directement le rôle dans les métadonnées de LabFusion
-            // Fusion va automatiquement envoyer cette information à tous les joueurs Steam et Quest de la room
             PlayerSender.SendPlayerMetadataRequest(PlayerIdManager.LocalSmallId, MetadataKey, job.ToString());
             MelonLogger.Msg($"[Réseau] Rôle synchronisé avec le serveur : {job}");
         }
 
-        // Affichage local en bas à gauche de l'écran du Quest 3
         public override void OnGUI()
         {
-            GUIStyle style = new GUIStyle { fontSize = 24, fontStyle = FontStyle.Bold };
+            GUIStyle style = new GUIStyle();
+            style.fontSize = 24;
+            style.richText = true; // Permet l'utilisation des balises HTML comme <b> pour le gras
             style.normal.textColor = ObtenirCouleurJob(MonJobActuel);
-            GUI.Label(new Rect(30, Screen.height - 60, 400, 50), $"VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}", style);
+            
+            GUI.Label(new Rect(30, Screen.height - 60, 400, 50), $"<b>VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}</b>", style);
         }
 
-        // Boucle d'affichage 3D au-dessus de la tête des autres joueurs (Cross-play Quest/Steam)
         public override void OnUpdate()
         {
             if (!NetworkInfo.HasServer) return;
@@ -108,10 +106,8 @@ namespace FusionDarkRP
                 var rep = pRep.Value;
                 if (rep == null || rep.IsGhost) continue;
 
-                // On extrait l'ID réseau du joueur
                 byte smallId = pRep.Key;
                 
-                // On récupère le rôle de l'autre joueur via ses métadonnées Fusion reçues en temps réel
                 string jobName = "Citoyen";
                 if (rep.PlayerId != null && rep.PlayerId.Metadata != null)
                 {
@@ -122,7 +118,6 @@ namespace FusionDarkRP
                 if (tete != null)
                 {
                     Vector3 positionDuRole = tete.position + Vector3.up * 0.40f;
-                    // L'emplacement 3D synchro au-dessus de leur tête est prêt et alimenté par le réseau
                 }
             }
         }
