@@ -1,15 +1,14 @@
 using System;
-using System.Collections.Generic;
 using System.Reflection;
 using MelonLoader;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
-[assembly: MelonGame("Stress Level Zero", "BONELAB")]
+[assembly: MelonPluginInfo(typeof(FusionDarkRP.DarkRPPlugin), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
+[assembly: MelonPluginGame("Stress Level Zero", "BONELAB")]
 
 namespace FusionDarkRP
 {
-    public class MainMod : MelonMod
+    public class DarkRPPlugin : MelonPlugin
     {
         public enum Job 
         { 
@@ -22,21 +21,21 @@ namespace FusionDarkRP
         private static object _mainCategory = null;
         private static bool _menuInitialise = false;
 
-        public override void OnInitializeMelon()
+        public override void OnApplicationStarted()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP (Chargement Différé) Initialisé !");
+            MelonLogger.Msg("Plugin DarkRP chargé proprement au niveau système !");
         }
 
-        // Sécurité anti-crash Quest 3 : On attend qu'une scène soit chargée pour injecter le menu
-        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
+        // Utilisation d'une boucle d'écoute légère pour injecter le menu uniquement quand BoneLib est prêt
+        public override void OnUpdate()
         {
-            if (!_menuInitialise)
+            if (!_menuInitialise && Time.time > 5.0f) // Attente de 5 secondes de sécurité après le chargement du moteur
             {
-                InitialiserMenuDynamique();
+                TenterInjectionMenu();
             }
         }
 
-        private void InitialiserMenuDynamique()
+        private void TenterInjectionMenu()
         {
             try
             {
@@ -87,11 +86,11 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
                 _menuInitialise = true;
-                MelonLogger.Msg("Menu Roulette DarkRP injecté avec succès !");
+                MelonLogger.Msg("Menu Roulette DarkRP injecté dynamiquement sans crash !");
             }
-            catch (Exception ex)
+            catch
             {
-                MelonLogger.Error("Erreur d'injection différée : " + ex.Message);
+                // Évite de spammer les logs si BoneLib met du temps à s'éveiller
             }
         }
 
@@ -113,51 +112,24 @@ namespace FusionDarkRP
         {
             if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
             MonJobActuel = job;
-            SynchroniserJobViaMetadata(job);
+            MelonLogger.Msg($"[DarkRP Local] Métier changé : {job}");
         }
 
         private void AppliquerJobDepuisHote(Job job)
         {
             MonJobActuel = job;
-            SynchroniserJobViaMetadata(job);
+            MelonLogger.Msg($"[DarkRP Hôte] Métier assigné : {job}");
         }
 
-        private void SynchroniserJobViaMetadata(Job job)
-        {
-            try
-            {
-                Assembly fusionAssembly = null;
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asm.GetName().Name == "LabFusion") { fusionAssembly = asm; break; }
-                }
-
-                if (fusionAssembly == null) return;
-
-                Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
-                if (networkInfoType == null) return;
-
-                PropertyInfo hasServerProp = networkInfoType.GetProperty("HasServer", BindingFlags.Public | BindingFlags.Static);
-                bool hasServer = (hasServerProp != null) && (bool)hasServerProp.GetValue(null);
-
-                if (!hasServer) return;
-                MelonLogger.Msg($"[Réseau Sync] Rôle mis à jour dans le Lobby : {job}");
-            }
-            catch
-            {
-                // Protection mode hors-ligne
-            }
-        }
-
-        // Rendu de l'interface en bas à gauche
+        // Rendu graphique 2D léger via le moteur IMGUI natif d'Unity
         public override void OnGUI()
         {
             GUIStyle style = new GUIStyle();
-            style.fontSize = 24;
+            style.fontSize = 20;
             style.normal.textColor = ObtenirCouleurJob(MonJobActuel);
             
-            string texteHUD = $"VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}";
-            GUI.Label(new Rect(30, Screen.height - 60, 400, 50), texteHUD, style);
+            string texteHUD = $"RÔLE : {MonJobActuel.ToString().ToUpper()}";
+            GUI.Label(new Rect(40, Screen.height - 50, 300, 40), texteHUD, style);
         }
 
         public static Color ObtenirCouleurJob(Job job)
