@@ -7,7 +7,6 @@ using LabFusion.Network;
 using LabFusion.Representation;
 using LabFusion.SDK.Modules;
 using LabFusion.Utilities;
-using LabFusion.Data;
 using UnityEngine;
 
 [assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
@@ -131,7 +130,6 @@ namespace FusionDarkRP
                 if (tete != null)
                 {
                     Vector3 positionDuRole = tete.position + Vector3.up * 0.40f;
-                    // Emplacement prêt pour recevoir l'affichage 3D synchro
                 }
             }
         }
@@ -147,10 +145,10 @@ namespace FusionDarkRP
                 case Job.Parrain: return new Color(0.5f, 0f, 0f);
                 case Job.Gangster: return Color.red;
                 case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
-                case Job.VendeurArmes: return new Color(1f, 0.5f, 0f); // Orange corrigé
+                case Job.VendeurArmes: return new Color(1f, 0.5f, 0f);
                 case Job.GardeDuCorps: return Color.gray;
                 case Job.Depanneur: return Color.yellow;
-                case Job.Mercenaire: return new Color(0.3f, 0.1f, 0.5f); // Violet foncé
+                case Job.Mercenaire: return new Color(0.3f, 0.1f, 0.5f);
                 case Job.Medecin: return Color.green;
                 default: return Color.white;
             }
@@ -179,11 +177,10 @@ namespace FusionDarkRP
 
     public class ChangementJobMessage : MessageHandler
     {
-        public override byte? Tag => 124;
-
-        protected override void Handle(ReceivedMessage message)
+        // Correction : Changement du modificateur d'accès pour correspondre à l'API publique de Fusion
+        public override void HandleMessage(byte[] bytes, bool isServerHandled = false)
         {
-            using (var reader = FusionReader.Create(message.Buffer))
+            using (var reader = FusionReader.Create(bytes))
             {
                 var data = reader.ReadFusionSerializable<ChangementJobData>();
                 MainMod.DicoJoueursJobs[data.SmallId] = (MainMod.Job)data.JobId;
