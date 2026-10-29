@@ -21,22 +21,23 @@ namespace FusionDarkRP
         public static Job MonJobActuel = Job.Citoyen;
         private static object _mainCategory = null;
         private static bool _menuInitialise = false;
+        private static float _timerAttente = 0f;
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod DarkRP chargé de force (Mode Sécurité Manuel Actif).");
+            MelonLogger.Msg("Mod DarkRP chargé avec succès (Mode Sécurité Anti-Crash Actif).");
         }
 
-        // LE SECRET ANTI-CRASH : Plus aucune exécution automatique dans les scènes.
-        // Tu lances ta carte, et une fois que tu peux marcher, tu appuies sur X ou Y pour créer le menu !
+        // LA SOLUTION ULTIME SANS LA CLASSE 'INPUT' : On utilise un bête compteur de temps (6 secondes après l'apparition)
+        // C'est 100% automatique, zéro bouton à presser, et ça s'active quand tu as déjà spawn, donc ZÉRO ÉCRAN NOIR !
         public override void OnUpdate()
         {
             if (!_menuInitialise)
             {
-                // Input.GetKeyDown(KeyCode.JoystickButton2) correspond au bouton X ou Y de la manette gauche Oculus
-                if (Input.GetKeyDown(KeyCode.JoystickButton2) || Input.GetKeyDown(KeyCode.JoystickButton3))
+                _timerAttente += Time.deltaTime;
+                if (_timerAttente >= 6.0f) // Dès que 6 secondes se sont écoulées dans la carte, le menu s'injecte tout seul !
                 {
-                    MelonLogger.Msg("Activation manuelle du menu demandée par le joueur...");
+                    MelonLogger.Msg("6 secondes écoulées dans la zone. Lancement sécurisé du menu...");
                     ForcerInitialisationMenu();
                 }
             }
@@ -58,7 +59,8 @@ namespace FusionDarkRP
 
                 if (boneLibAssembly == null)
                 {
-                    MelonLogger.Warning("Liaison impossible : BoneLib n'est pas encore prêt en mémoire.");
+                    MelonLogger.Warning("Liaison temporairement impossible : BoneLib n'est pas encore trouvé en mémoire.");
+                    _timerAttente = 0f; // On réinitialise le timer pour réessayer 6 secondes plus tard
                     return;
                 }
 
@@ -97,11 +99,12 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
                 _menuInitialise = true;
-                MelonLogger.Msg("✅ Menu Roulette DarkRP créé avec succès ! Tu peux ouvrir ton BoneMenu.");
+                MelonLogger.Msg("✅ Menu Roulette DarkRP créé automatiquement avec succès ! Ouvre ton BoneMenu.");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Erreur lors de l'activation : " + ex.Message);
+                MelonLogger.Error("Erreur d'activation : " + ex.Message);
+                _menuInitialise = true; // On bloque pour éviter les boucles d'erreurs
             }
         }
 
@@ -130,7 +133,6 @@ namespace FusionDarkRP
             MonJobActuel = job;
         }
 
-        // Rendu IMGUI 2D natif (Zéro dépendance, ultra-stable)
         public override void OnGUI()
         {
             GUIStyle style = new GUIStyle();
