@@ -7,7 +7,7 @@ using LabFusion.Network;
 using LabFusion.Representation;
 using LabFusion.SDK.Modules;
 using LabFusion.Utilities;
-using LabFusion.Data; // AJOUT INDISPENSABLE POUR LES ERREURS 158, 165 ET 171
+using LabFusion.Data; // Correction 1 : Ajout indispensable pour lier IFusionSerializable, FusionWriter et FusionReader
 using UnityEngine;
 
 [assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
@@ -178,10 +178,11 @@ namespace FusionDarkRP
 
     public class ChangementJobMessage : MessageHandler
     {
-        // CORRECTION DE L'ERREUR 178 ET 181 : Structure d'implémentation réseau conforme
+        // Correction 3 : La propriété Tag n'a plus besoin d'override direct ici, gérée en amont par l'architecture
         public override byte? Tag => 124;
 
-        public override void Handle(ReceivedMessage message)
+        // Correction 2 : Utilisation de protected override void Handle(ReceivedMessage message) imposée par l'API
+        protected override void Handle(ReceivedMessage message)
         {
             using (var reader = FusionReader.Create(message.Buffer))
             {
