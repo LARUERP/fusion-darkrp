@@ -1,14 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using MelonLoader;
 using UnityEngine;
 
-[assembly: MelonPluginInfo(typeof(FusionDarkRP.DarkRPPlugin), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
-[assembly: MelonPluginGame("Stress Level Zero", "BONELAB")]
+[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
+[assembly: MelonGame("Stress Level Zero", "BONELAB")]
 
 namespace FusionDarkRP
 {
-    public class DarkRPPlugin : MelonPlugin
+    public class MainMod : MelonMod
     {
         public enum Job 
         { 
@@ -21,21 +22,21 @@ namespace FusionDarkRP
         private static object _mainCategory = null;
         private static bool _menuInitialise = false;
 
-        public override void OnApplicationStarted()
+        public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Plugin DarkRP chargé proprement au niveau système !");
+            MelonLogger.Msg("Mod Fusion DarkRP Initialisé au démarrage !");
         }
 
-        // Utilisation d'une boucle d'écoute légère pour injecter le menu uniquement quand BoneLib est prêt
-        public override void OnUpdate()
+        // Sécurité Quest 3 : Le menu ne s'injecte pas au démarrage (zéro écran noir), il attend la première scène du jeu
+        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
-            if (!_menuInitialise && Time.time > 5.0f) // Attente de 5 secondes de sécurité après le chargement du moteur
+            if (!_menuInitialise)
             {
-                TenterInjectionMenu();
+                InitialiserMenuDynamique();
             }
         }
 
-        private void TenterInjectionMenu()
+        private void InitialiserMenuDynamique()
         {
             try
             {
@@ -86,11 +87,11 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
                 _menuInitialise = true;
-                MelonLogger.Msg("Menu Roulette DarkRP injecté dynamiquement sans crash !");
+                MelonLogger.Msg("Menu Roulette DarkRP injecté avec succès et sans crash !");
             }
-            catch
+            catch (Exception ex)
             {
-                // Évite de spammer les logs si BoneLib met du temps à s'éveiller
+                MelonLogger.Error("Erreur d'injection : " + ex.Message);
             }
         }
 
@@ -121,15 +122,15 @@ namespace FusionDarkRP
             MelonLogger.Msg($"[DarkRP Hôte] Métier assigné : {job}");
         }
 
-        // Rendu graphique 2D léger via le moteur IMGUI natif d'Unity
+        // Rendu de l'affichage en bas à gauche de l'écran du Quest 3
         public override void OnGUI()
         {
             GUIStyle style = new GUIStyle();
-            style.fontSize = 20;
+            style.fontSize = 24;
             style.normal.textColor = ObtenirCouleurJob(MonJobActuel);
             
-            string texteHUD = $"RÔLE : {MonJobActuel.ToString().ToUpper()}";
-            GUI.Label(new Rect(40, Screen.height - 50, 300, 40), texteHUD, style);
+            string texteHUD = $"VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}";
+            GUI.Label(new Rect(30, Screen.height - 60, 400, 50), texteHUD, style);
         }
 
         public static Color ObtenirCouleurJob(Job job)
