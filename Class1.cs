@@ -4,12 +4,12 @@ using System.Reflection;
 using MelonLoader;
 using UnityEngine;
 
-[assembly: MelonPluginInfo(typeof(FusionDarkRP.MainPlugin), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
-[assembly: MelonPluginGame("Stress Level Zero", "BONELAB")]
+[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
+[assembly: MelonGame("Stress Level Zero", "BONELAB")]
 
 namespace FusionDarkRP
 {
-    public class MainPlugin : MelonPlugin
+    public class MainMod : MelonMod
     {
         public enum Job 
         { 
@@ -25,18 +25,20 @@ namespace FusionDarkRP
         private static bool _menuInitialise = false;
         private static float _timerAttente = 0f;
 
-        public override void OnApplicationStarted()
+        public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Plugin DarkRP (Mode Sécurité Système) chargé proprement !");
+            MelonLogger.Msg("Mod DarkRP Multijoueur chargé de force.");
         }
 
+        // LE SECRET ANTI-CRASH POUR UN MOD : On utilise un timer. 
+        // Le mod ne fait STRICTEMENT RIEN au démarrage (Zéro écran noir, Zéro crash).
+        // Il attend que tu sois sur la carte depuis 10 secondes pour s'injecter proprement.
         public override void OnUpdate()
         {
-            // Sécurité anti-écran noir Quest 3 : On attend que le jeu tourne depuis 8 secondes en arrière-plan pour injecter la roulette
             if (!_menuInitialise)
             {
                 _timerAttente += Time.deltaTime;
-                if (_timerAttente >= 8.0f)
+                if (_timerAttente >= 10.0f) // 10 secondes de sécurité après ton spawn
                 {
                     InitialiserMenuPropre();
                 }
@@ -55,7 +57,7 @@ namespace FusionDarkRP
 
                 if (boneLibAssembly == null)
                 {
-                    _timerAttente = 0f; // On réinitialise pour réessayer 8 secondes après si BoneLib charge tardivement
+                    _timerAttente = 0f; // Si BoneLib n'est pas encore là, on réessaye dans 10 secondes
                     return;
                 }
 
@@ -65,6 +67,7 @@ namespace FusionDarkRP
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
                 if (createCategoryMethod == null) return;
 
+                // Liaison directe sécurisée
                 _mainCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
                 if (_mainCategory == null) return;
 
@@ -94,7 +97,7 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
                 _menuInitialise = true;
-                MelonLogger.Msg("✅ Menu Roulette DarkRP injecté avec succès !");
+                MelonLogger.Msg("✅ Menu Roulette DarkRP injecté avec succès dans le BoneMenu !");
             }
             catch (Exception ex)
             {
@@ -176,7 +179,6 @@ namespace FusionDarkRP
             return null;
         }
 
-        // Rendu de l'interface en bas à gauche de la vue du joueur (IMGUI)
         public override void OnGUI()
         {
             GUIStyle style = new GUIStyle();
@@ -200,7 +202,7 @@ namespace FusionDarkRP
                 case Job.VendeurArmes: return new Color(1f, 0.5f, 0f);
                 case Job.GardeDuCorps: return Color.gray;
                 case Job.Depanneur: return Color.yellow;
-                case Job.Mercenaire: return new Color(0.3f, 0.1f, 0.5f);
+                case Job.Mercenaire: return Color.black;
                 case Job.Medecin: return Color.green;
                 default: return Color.white;
             }
