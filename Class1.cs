@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using MelonLoader;
-using UnityEngine;
 
 [assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
 [assembly: MelonGame("Stress Level Zero", "BONELAB")]
@@ -20,78 +19,64 @@ namespace FusionDarkRP
         
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
-        private static bool _updaterCree = false;
+        
+        private static object _darkRPCategory = null;
+        private static bool _menuInjecteAvecSucces = false;
+        private static float _timerAttente = 0f;
+        private static bool _carteChargee = false;
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP v11 (Architecture MonoBehaviour Déléguée) Initialisé !");
+            MelonLogger.Msg("Mod Fusion DarkRP v11 (Horloge Asynchrone Stabilisée) Initialisé !");
         }
 
-        // Cet événement se déclenche à chaque chargement de map.
-        // On en profite pour créer notre injecteur Unity indépendant.
+        // Dès qu'une carte est chargée, on active l'horloge
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
-            if (!_updaterCree)
+            _timerAttente = 0f;
+            _carteChargee = true;
+            MelonLogger.Msg("[DarkRP] Nouvelle carte détectée. En attente de stabilisation du serveur...");
+        }
+
+        // Cette boucle s'exécute de manière ultra-légère via MelonLoader (0% écran noir)
+        public override void OnUpdate()
+        {
+            if (_carteChargee && !_menuInjecteAvecSucces)
             {
                 try
                 {
-                    GameObject darkRPUpdater = new GameObject("DarkRP_Menu_Hook");
-                    darkRPUpdater.AddComponent<DarkRPMenuController>();
-                    UnityEngine.Object.DontDestroyOnLoad(darkRPUpdater);
-                    _updaterCree = true;
-                    MelonLogger.Msg("[DarkRP] Injecteur matériel délégué créé en mémoire vive !");
+                    Type timeType = Type.GetType("UnityEngine.Time, UnityEngine.CoreModule");
+                    if (timeType == null) return;
+
+                    float deltaTime = (float)timeType.GetProperty("deltaTime", BindingFlags.Public | BindingFlags.Static).GetValue(null);
+                    _timerAttente += deltaTime;
+
+                    // Attente stricte de 15 secondes après être apparu sur la map multijoueur
+                    if (_timerAttente >= 15.0f)
+                    {
+                        _timerAttente = 0f;
+                        TenterInjectionOfficielle();
+                    }
                 }
-                catch (Exception ex)
-                {
-                    MelonLogger.Error("Impossible de créer l'injecteur Unity : " + ex.Message);
-                }
-            }
-        }
-    }
-
-    // CLASSE COMPOSANTE DÉLÉGUÉE : Elle s'exécute de façon autonome dans le moteur Unity
-    // sans bloquer LemonLoader ni subir les nettoyages réseau de LabFusion.
-    public class DarkRPMenuController : MonoBehaviour
-    {
-        private object _darkRPCategory = null;
-        private bool _menuInjecteAvecSucces = false;
-        private float _timerAttente = 0f;
-
-        public DarkRPMenuController(IntPtr ptr) : base(ptr) { }
-
-        void Start()
-        {
-            MelonLogger.Msg("[DarkRP-Controller] Lancement du compte à rebours d'injection (10s)...");
-        }
-
-        void Update()
-        {
-            if (!_menuInjecteAvecSucces)
-            {
-                _timerAttente += Time.deltaTime;
-                if (_timerAttente >= 10.0f) // Attend 10 secondes en jeu que ton serveur soit 100% stabilisé
-                {
-                    _timerAttente = 0f;
-                    TenterInjectionOfficielle();
-                }
+                catch {}
             }
         }
 
-        private void TenterInjectionOfficielle()
+        private static void TenterInjectionOfficielle()
         {
             if (_menuInjecteAvecSucces) return;
 
             try
             {
-                Assembly boneLibAssembly = null;
+                Assembly boneLineAsm = null;
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    if (asm.GetName().Name == "BoneLib") { boneLibAssembly = asm; break; }
+                    if (asm.GetName().Name == "BoneLib") { boneLineAsm = asm; break; }
                 }
 
-                if (boneLibAssembly == null) return;
+                if (boneLineAsm == null) return;
 
-                Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
+                Type menuManagerType = boneLineAsm.GetType("BoneLib.BoneMenu.MenuManager");
                 if (menuManagerType == null) return;
 
                 Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
@@ -117,37 +102,37 @@ namespace FusionDarkRP
 
                 // Section 1 : Emplois publics
                 object publicCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Jobs Publics", couleurBlanche });
-                AjouterBoutonJob(publicCat, "Devenir Citoyen", MainMod.Job.Citoyen, couleurBlanche);
-                AjouterBoutonJob(publicCat, "Devenir Medecin", MainMod.Job.Medecin, couleurVerte);
-                AjouterBoutonJob(publicCat, "Devenir Depanneur", MainMod.Job.Depanneur, couleurJaune);
-                AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", MainMod.Job.VendeurArmes, couleurCyan);
+                AjouterBoutonJob(publicCat, "Devenir Citoyen", Job.Citoyen, couleurBlanche);
+                AjouterBoutonJob(publicCat, "Devenir Medecin", Job.Medecin, couleurVerte);
+                AjouterBoutonJob(publicCat, "Devenir Depanneur", Job.Depanneur, couleurJaune);
+                AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, couleurCyan);
 
                 // Section 2 : Hiérarchies de Factions
                 object factionCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Rejoindre Faction", couleurGrise });
-                AjouterBoutonJob(factionCat, "Devenir Policier", MainMod.Job.Police, couleurBleue);
-                AjouterBoutonJob(factionCat, "Devenir Agent Securite", MainMod.Job.AgentSecurite, couleurCyan);
-                AjouterBoutonJob(factionCat, "Devenir Gangster", MainMod.Job.Gangster, couleurRouge);
-                AjouterBoutonJob(factionCat, "Devenir Fabricant", MainMod.Job.Fabricant, couleurRouge);
-                AjouterBoutonJob(factionCat, "Devenir Garde du Corps", MainMod.Job.GardeDuCorps, couleurGrise);
+                AjouterBoutonJob(factionCat, "Devenir Policier", Job.Police, couleurBleue);
+                AjouterBoutonJob(factionCat, "Devenir Agent Securite", Job.AgentSecurite, couleurCyan);
+                AjouterBoutonJob(factionCat, "Devenir Gangster", Job.Gangster, couleurRouge);
+                AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, couleurRouge);
+                AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, couleurGrise);
 
                 // Section 3 : Commandement d'administration (Hôte)
                 object adminCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Menu Admin Hote", couleurRouge });
                 object couleurOr = Activator.CreateInstance(colorType, new object[] { 1.0f, 0.84f, 0.0f, 1.0f });
-                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", MainMod.Job.Maire, couleurOr);
-                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", MainMod.Job.PatronPolice, couleurBleue);
-                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", MainMod.Job.Parrain, couleurRouge);
-                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", MainMod.Job.Mercenaire, couleurNoire);
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, couleurOr);
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", Job.PatronPolice, couleurBleue);
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, couleurRouge);
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, couleurNoire);
 
                 _menuInjecteAvecSucces = true;
-                MelonLogger.Msg("============== [SUCCESS GRANDISSIME] ROULETTE DARKRP INJECTEE AVEC SUCCES ==============");
+                MelonLogger.Msg("============== ROULETTE DARKRP DISTRIBUÉE DANS LE BONEMENU AVEC SUCCÈS ==============");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Échec de la tentative d'injection : " + ex.Message);
+                MelonLogger.Error("Échec de l'injection : " + ex.Message);
             }
         }
 
-        private static void AjouterBoutonJob(object subCategory, string label, MainMod.Job job, object colorObj)
+        private static void AjouterBoutonJob(object subCategory, string label, Job job, object colorObj)
         {
             if (subCategory == null) return;
             Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
@@ -155,7 +140,7 @@ namespace FusionDarkRP
             createFunction?.Invoke(subCategory, new object[] { label, colorObj, (Action)(() => ChangerDeJobLocal(job)) });
         }
 
-        private static void AjouterBoutonAdmin(object subCategory, string label, MainMod.Job job, object colorObj)
+        private static void AjouterBoutonAdmin(object subCategory, string label, Job job, object colorObj)
         {
             if (subCategory == null) return;
             Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
@@ -163,14 +148,14 @@ namespace FusionDarkRP
             createFunction?.Invoke(subCategory, new object[] { label, colorObj, (Action)(() => AssignerJobDepuisHote(job)) });
         }
 
-        private static void ChangerDeJobLocal(MainMod.Job job)
+        private static void ChangerDeJobLocal(Job job)
         {
-            if (job == MainMod.Job.Maire || job == MainMod.Job.PatronPolice || job == MainMod.Job.Parrain || job == MainMod.Job.Mercenaire) return;
-            MainMod.MonJobActuel = job;
+            if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
+            MonJobActuel = job;
             MettreAJourMetadataDynamique(job);
         }
 
-        private static void AssignerJobDepuisHote(MainMod.Job jobPatron)
+        private static void AssignerJobDepuisHote(Job jobPatron)
         {
             try
             {
@@ -183,13 +168,13 @@ namespace FusionDarkRP
 
                 if (!isServer) return;
 
-                MainMod.MonJobActuel = jobPatron;
+                MonJobActuel = jobPatron;
                 MettreAJourMetadataDynamique(jobPatron);
             }
             catch {}
         }
 
-        private static void MettreAJourMetadataDynamique(MainMod.Job job)
+        private static void MettreAJourMetadataDynamique(Job job)
         {
             try
             {
@@ -200,13 +185,15 @@ namespace FusionDarkRP
                 PropertyInfo hasServerProp = networkInfoType?.GetProperty("HasServer", BindingFlags.Public | BindingFlags.Static);
                 if (hasServerProp == null || !(bool)hasServerProp.GetValue(null)) return;
 
-Type playerIdManagerType = fusionAssembly.GetType("LabFusion.Utilities.PlayerIdManager");
-PropertyInfo localSmallIdProp = playerIdManagerType?.GetProperty("LocalSmallId", BindingFlags.Public | BindingFlags.Static);
-if (localSmallIdProp == null) return;
-byte localId = (byte)localSmallIdProp.GetValue(null);
-Type playerSenderType = fusionAssembly.GetType("LabFusion.Network.PlayerSender");
-MethodInfo sendRequest = playerSenderType?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
-sendRequest?.Invoke(null, new object[] { localId, MainMod.MetadataKey, job.ToString() });
+                Type playerIdManagerType = fusionAssembly.GetType("LabFusion.Utilities.PlayerIdManager");
+                PropertyInfo localSmallIdProp = playerIdManagerType?.GetProperty("LocalSmallId", BindingFlags.Public | BindingFlags.Static);
+                if (localSmallIdProp == null) return;
+                byte localId = (byte)localSmallIdProp.GetValue(null);
+
+                Type playerSenderType = fusionAssembly.GetType("LabFusion.Network.PlayerSender");
+                MethodInfo sendRequest = playerSenderType?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
+                
+                sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
 }
 catch {}
 }
