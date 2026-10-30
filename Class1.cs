@@ -19,73 +19,49 @@ namespace FusionDarkRP
         
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
-        
         private static object _darkRPCategory = null;
-        private static bool _menuInjecteAvecSucces = false;
-        private static float _timerAttente = 0f;
-        private static bool _carteChargee = false;
 
+        // LA METHODE DES AUTRES MODS : Initialisation synchrone obligatoire au démarrage
+        // Mais convertie en Reflection pure pour éviter l'écran noir de LemonLoader.
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP v11 (Horloge Asynchrone Stabilisée) Initialisé !");
+            MelonLogger.Msg("Mod Fusion DarkRP v12 (Injection Synchrone Native) Initialisé !");
+            ExecuterInjectionBoneMenuDirecte();
         }
 
-        // Dès qu'une carte est chargée, on active l'horloge
-        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
+        private static void ExecuterInjectionBoneMenuDirecte()
         {
-            _timerAttente = 0f;
-            _carteChargee = true;
-            MelonLogger.Msg("[DarkRP] Nouvelle carte détectée. En attente de stabilisation du serveur...");
-        }
-
-        // Cette boucle s'exécute de manière ultra-légère via MelonLoader (0% écran noir)
-        public override void OnUpdate()
-        {
-            if (_carteChargee && !_menuInjecteAvecSucces)
-            {
-                try
-                {
-                    Type timeType = Type.GetType("UnityEngine.Time, UnityEngine.CoreModule");
-                    if (timeType == null) return;
-
-                    float deltaTime = (float)timeType.GetProperty("deltaTime", BindingFlags.Public | BindingFlags.Static).GetValue(null);
-                    _timerAttente += deltaTime;
-
-                    // Attente stricte de 15 secondes après être apparu sur la map multijoueur
-                    if (_timerAttente >= 15.0f)
-                    {
-                        _timerAttente = 0f;
-                        TenterInjectionOfficielle();
-                    }
-                }
-                catch {}
-            }
-        }
-
-        private static void TenterInjectionOfficielle()
-        {
-            if (_menuInjecteAvecSucces) return;
+            if (_darkRPCategory != null) return;
 
             try
             {
-                Assembly boneLineAsm = null;
+                // Chargement à la volée de l'assemblage BoneLib installé dans le casque
+                Assembly boneLibAssembly = null;
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    if (asm.GetName().Name == "BoneLib") { boneLineAsm = asm; break; }
+                    if (asm.GetName().Name == "BoneLib") { boneLibAssembly = asm; break; }
                 }
 
-                if (boneLineAsm == null) return;
+                if (boneLibAssembly == null)
+                {
+                    MelonLogger.Warning("[DarkRP] BoneLib introuvable au démarrage. Tentative d'ancrage passif...");
+                    return;
+                }
 
-                Type menuManagerType = boneLineAsm.GetType("BoneLib.BoneMenu.MenuManager");
+                Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
                 if (menuManagerType == null) return;
 
+                // Récupération dynamique de la structure de Couleur d'Unity
                 Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
                 if (colorType == null) return;
 
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
                 if (createCategoryMethod == null) return;
 
+                // Instanciation de la couleur jaune pour notre catégorie racine
                 object couleurJaune = Activator.CreateInstance(colorType, new object[] { 1f, 0.92f, 0.016f, 1f });
+                
+                // On crée l'onglet directement à la racine du BoneMenu au démarrage de BONELAB
                 _darkRPCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", couleurJaune });
                 if (_darkRPCategory == null) return;
 
@@ -115,7 +91,7 @@ namespace FusionDarkRP
                 AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, couleurRouge);
                 AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, couleurGrise);
 
-                // Section 3 : Commandement d'administration (Hôte)
+                // Section 3 : Commandement d'administration (Réservé à l'Hôte)
                 object adminCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Menu Admin Hote", couleurRouge });
                 object couleurOr = Activator.CreateInstance(colorType, new object[] { 1.0f, 0.84f, 0.0f, 1.0f });
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, couleurOr);
@@ -123,12 +99,11 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, couleurRouge);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, couleurNoire);
 
-                _menuInjecteAvecSucces = true;
-                MelonLogger.Msg("============== ROULETTE DARKRP DISTRIBUÉE DANS LE BONEMENU AVEC SUCCÈS ==============");
+                MelonLogger.Msg("============== MOD INJECTE DANS LE COMPOSANT RACINE DE BONEMENU AVEC SUCCES ==============");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Échec de l'injection : " + ex.Message);
+                MelonLogger.Error("Erreur d'injection synchrone : " + ex.Message);
             }
         }
 
@@ -194,16 +169,17 @@ namespace FusionDarkRP
                 MethodInfo sendRequest = playerSenderType?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
                 
                 sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
-}
-catch {}
-}
-private static Assembly ObtenirFusionAssembly()
-{
-foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-{
-if (asm.GetName().Name == "LabFusion") return asm;
-}
-return null;
-}
-}
+            }
+            catch {}
+        }
+
+        private static Assembly ObtenirFusionAssembly()
+        {
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.GetName().Name == "LabFusion") return asm;
+            }
+            return null;
+        }
+    }
 }
