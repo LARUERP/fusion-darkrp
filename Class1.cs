@@ -20,39 +20,37 @@ namespace FusionDarkRP
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
         private static object _darkRPCategory = null;
-        private static bool _reseauConnecte = false;
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP v6 (Synchro Lancement Serveur) Initialisé !");
-        }
-
-        // PROTECTION ANTI-ECRAN NOIR : On vérifie l'état du serveur réseau.
-        // Dès que LabFusion confirme que tu as créé ou rejoint une partie, le menu est injecté instantanément.
-        public override void OnUpdate()
-        {
-            if (!_reseauConnecte)
+            MelonLogger.Msg("Mod Fusion DarkRP v7 (Abonnement Événements Réseau) Initialisé !");
+            
+            // LA SOLUTION UNIQUE TECHNIQUE : On s'abonne aux écouteurs d'événements officiels de LabFusion
+            try
             {
-                try
+                Assembly fusionAssembly = ObtenirFusionAssembly();
+                if (fusionAssembly != null)
                 {
-                    Assembly fusionAssembly = ObtenirFusionAssembly();
-                    if (fusionAssembly == null) return;
+                    Type networkEventsType = fusionAssembly.GetType("LabFusion.Network.MultiplayerHooking");
+                    EventInfo serverStartedEvent = networkEventsType?.GetEvent("OnStartServer");
 
-                    Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
-                    PropertyInfo hasServerProp = networkInfoType?.GetProperty("HasServer", BindingFlags.Public | BindingFlags.Static);
-                    
-                    if (hasServerProp != null && (bool)hasServerProp.GetValue(null))
+                    if (serverStartedEvent != null)
                     {
-                        _reseauConnecte = true;
-                        MelonLogger.Msg("Connexion serveur détectée ! Lancement de la création du BoneMenu...");
-                        ExecuterInjectionBoneMenu();
+                        Action callback = new Action(AuLancementDuServeur);
+                        Delegate handler = Delegate.CreateDelegate(serverStartedEvent.EventHandlerType, callback.Method);
+                        serverStartedEvent.AddEventHandler(null, handler);
+                        MelonLogger.Msg("Abonnement réseau validé ! En attente de la création de la room...");
                     }
                 }
-                catch {}
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error("Erreur d'abonnement aux événements réseau : " + ex.Message);
             }
         }
 
-        private static void ExecuterInjectionBoneMenu()
+        // Cette méthode s'exécute AUTOMATIQUEMENT à la micro-seconde où ton serveur s'ouvre avec FusionHelper
+        private static void AuLancementDuServeur()
         {
             if (_darkRPCategory != null) return;
 
@@ -84,7 +82,7 @@ namespace FusionDarkRP
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
                 if (createCategoryMethod == null) return;
 
-                // Création de l'onglet à la racine de ton BoneMenu (B -> Preferences -> BoneMenu)
+                // Création physique forcée de la catégorie jaune à la racine du BoneMenu
                 _darkRPCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", couleurJaune });
                 if (_darkRPCategory == null) return;
 
@@ -114,11 +112,11 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, couleurRouge);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, couleurNoire);
 
-                MelonLogger.Msg("============== ONGLET INJECTE LORS DE LA CONNEXION SERVEUR ==============");
+                MelonLogger.Msg("============== ONGLET SELECTION GENEREE DANS LE BONEMENU CON JOIE ==============");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Erreur d'injection réseau : " + ex.Message);
+                MelonLogger.Error("Erreur d'injection au démarrage du serveur : " + ex.Message);
             }
         }
 
@@ -189,10 +187,10 @@ namespace FusionDarkRP
         }
 
         private static Assembly ObtenirFusionAssembly()
-        {
-            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-            {
-            if (asm.GetName().Name == "LabFusion") return asm;
+{
+foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+{
+if (asm.GetName().Name == "LabFusion") return asm;
 }
 return null;
 }
