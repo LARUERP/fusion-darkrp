@@ -29,13 +29,11 @@ namespace FusionDarkRP
             MelonLogger.Msg("Une fois en jeu sur votre carte, appuyez sur X ou Y pour générer le menu !");
         }
 
-        // PROTECTION ABSOLUE : Plus aucune boucle temporelle ou événement Unity instable.
-        // C'est MelonLoader qui intercepte directement vos manettes. Aucun risque d'écran noir.
+        // Interception de la pression des boutons de la manette gauche
         public override void OnUpdate()
         {
             if (!_menuInitialise)
             {
-                // JoystickButton2 et 3 correspondent aux boutons physiques X et Y de la manette gauche Oculus
                 if (Input.GetKeyDown(KeyCode.JoystickButton2) || Input.GetKeyDown(KeyCode.JoystickButton3))
                 {
                     MelonLogger.Msg("Pression de touche détectée : Lancement de l'injection sécurisée...");
@@ -65,11 +63,9 @@ namespace FusionDarkRP
                 Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
                 if (menuManagerType == null) return;
 
-                // Solution de contournement hybride : On cherche d'abord la racine du menu
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
                 if (createCategoryMethod == null) return;
 
-                // Création directe de notre catégorie principale jaune autonome
                 _darkRPCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
                 if (_darkRPCategory == null) return;
 
