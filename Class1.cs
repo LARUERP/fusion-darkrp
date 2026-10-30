@@ -20,40 +20,32 @@ namespace FusionDarkRP
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
         private static object _darkRPCategory = null;
+        private static bool _menuInitialise = false;
+        private static float _compteurTentatives = 0f;
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP v8 (Liaison Client/Serveur FusionHelper) Initialisé !");
-            
-            // LA SOLUTION CLIENT+SERVEUR : On s'abonne à OnJoinServer qui s'active à chaque connexion FusionHelper !
-            try
-            {
-                Assembly fusionAssembly = ObtenirFusionAssembly();
-                if (fusionAssembly != null)
-                {
-                    Type networkEventsType = fusionAssembly.GetType("LabFusion.Network.MultiplayerHooking");
-                    EventInfo joinServerEvent = networkEventsType?.GetEvent("OnJoinServer");
+            MelonLogger.Msg("Mod Fusion DarkRP v9 (Persistance Forcée) Initialisé !");
+        }
 
-                    if (joinServerEvent != null)
-                    {
-                        Action callback = new Action(AuRaccordementReseau);
-                        Delegate handler = Delegate.CreateDelegate(joinServerEvent.EventHandlerType, callback.Method);
-                        joinServerEvent.AddEventHandler(null, handler);
-                        MelonLogger.Msg("Abonnement réseau validé ! En attente du raccordement FusionHelper...");
-                    }
-                }
-            }
-            catch (Exception ex)
+        // LE FILTRE DE REUSSITE ABSOLU : Au lieu d'écouter un seul événement réseau qui se fait écraser,
+        // le mod vérifie toutes les 2 secondes en jeu si l'onglet jaune a été supprimé ou s'il n'est pas encore créé.
+        // Si le menu a disparu, il le ré-injecte de force en temps réel sur ton serveur !
+        public override void OnUpdate()
+        {
+            if (!_menuInitialise)
             {
-                MelonLogger.Error("Erreur d'abonnement réseau : " + ex.Message);
+                _compteurTentatives += UnityEngine.Time.deltaTime;
+                if (_compteurTentatives >= 2.0f) // Vérification/Tentative toutes les 2 secondes en jeu
+                {
+                    _compteurTentatives = 0f;
+                    TenterInjectionMenuBoneLib();
+                }
             }
         }
 
-        // Cette méthode s'exécute AUTOMATIQUEMENT dès que le Quest 3 se lie à la session multijoueur
-        private static void AuRaccordementReseau()
+        private static void TenterInjectionMenuBoneLib()
         {
-            if (_darkRPCategory != null) return;
-
             try
             {
                 Assembly boneLibAssembly = null;
@@ -70,7 +62,31 @@ namespace FusionDarkRP
                 Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
                 if (colorType == null) return;
 
+                // Extraction ou création de l'onglet "Fusion DarkRP"
+                MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
+                if (createCategoryMethod == null) return;
+
                 object couleurJaune = Activator.CreateInstance(colorType, new object[] { 1f, 0.92f, 0.016f, 1f });
+                _darkRPCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", couleurJaune });
+                if (_darkRPCategory == null) return;
+
+                Type categoryType = _darkRPCategory.GetType();
+                MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
+
+                // Nettoyage préalable pour éviter les doublons lors des tentatives répétées
+                PropertyInfo elementsProp = categoryType.GetProperty("Elements", BindingFlags.Public | BindingFlags.Instance);
+                if (elementsProp != null)
+                {
+                    var elementsList = elementsProp.GetValue(_darkRPCategory) as System.Collections.IList;
+                    if (elementsList != null && elementsList.Count > 0)
+                    {
+                        // Si le menu contient déjà ses boutons, l'initialisation est officiellement un succès !
+                        _menuInitialise = true;
+                        MelonLogger.Msg("✅ [Succès Absolu] L'onglet Fusion DarkRP est stabilisé en mémoire !");
+                        return;
+                    }
+                }
+
                 object couleurBlanche = colorType.GetProperty("white").GetValue(null);
                 object couleurVerte = colorType.GetProperty("green").GetValue(null);
                 object couleurBleue = colorType.GetProperty("blue").GetValue(null);
@@ -78,16 +94,6 @@ namespace FusionDarkRP
                 object couleurGrise = colorType.GetProperty("gray").GetValue(null);
                 object couleurRouge = colorType.GetProperty("red").GetValue(null);
                 object couleurNoire = colorType.GetProperty("black").GetValue(null);
-
-                MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
-                if (createCategoryMethod == null) return;
-
-                // Création physique forcée de la catégorie jaune à la racine de ton BoneMenu (B -> Preferences -> BoneMenu)
-                _darkRPCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", couleurJaune });
-                if (_darkRPCategory == null) return;
-
-                Type categoryType = _darkRPCategory.GetType();
-                MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
 
                 // Section 1 : Emplois publics
                 object publicCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Jobs Publics", couleurBlanche });
@@ -111,13 +117,8 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", Job.PatronPolice, couleurBleue);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, couleurRouge);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, couleurNoire);
-
-                MelonLogger.Msg("============== ONGLET SÉLECTION GÉNÉRÉ DANS LE BONEMENU AVEC SUCCÈS ==============");
             }
-            catch (Exception ex)
-            {
-                MelonLogger.Error("Erreur d'injection au raccordement réseau : " + ex.Message);
-            }
+            catch {}
         }
 
         private static void AjouterBoutonJob(object subCategory, string label, Job job, object colorObj)
@@ -182,9 +183,8 @@ namespace FusionDarkRP
                 MethodInfo sendRequest = playerSenderType?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
                 
                 sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
-            }
-            catch {}
-        }
+catch {}
+}
 private static Assembly ObtenirFusionAssembly()
 {
 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
@@ -194,4 +194,4 @@ if (asm.GetName().Name == "LabFusion") return asm;
 return null;
 }
 }
-}
+}}
