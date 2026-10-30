@@ -15,11 +15,5 @@
     <Reference Include="Il2CppInterop.Runtime">
       <HintPath>Libs/Il2CppInterop.Runtime.dll</HintPath>
     </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>Libs/UnityEngine.CoreModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>Libs/UnityEngine.IMGUIModule.dll</HintPath>
-    </Reference>
   </ItemGroup>
 </Project>
