@@ -20,33 +20,24 @@ namespace FusionDarkRP
         
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
-        
         private static object _mainCategory = null;
-        private static bool _menuInitialise = false;
-        private static float _timerAttente = 0f;
 
+        // ÉVITEMENT CRITIQUE DES CRASHS : Plus aucune méthode OnUpdate() ou OnGUI() n'est présente dans ce mod.
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod DarkRP Multijoueur chargé de force.");
+            MelonLogger.Msg("Mod DarkRP chargé. Lancement de la coroutine de sécurité anti-écran noir...");
+            
+            // On enregistre une fonction d'attente qui va s'exécuter de façon asynchrone sans bloquer l'affichage VR
+            MelonCoroutines.Start(AttendreEtInitialiserMenu(12.0f));
         }
 
-        // LE SECRET ANTI-CRASH POUR UN MOD : On utilise un timer. 
-        // Le mod ne fait STRICTEMENT RIEN au démarrage (Zéro écran noir, Zéro crash).
-        // Il attend que tu sois sur la carte depuis 10 secondes pour s'injecter proprement.
-        public override void OnUpdate()
+        private static System.Collections.IEnumerator AttendreEtInitialiserMenu(float temps)
         {
-            if (!_menuInitialise)
-            {
-                _timerAttente += Time.deltaTime;
-                if (_timerAttente >= 10.0f) // 10 secondes de sécurité après ton spawn
-                {
-                    InitialiserMenuPropre();
-                }
-            }
-        }
+            // Le script s'endort complètement pendant 12 secondes pour laisser le Quest 3 charger la map et le son
+            yield return new WaitForSeconds(temps);
 
-        private void InitialiserMenuPropre()
-        {
+            MelonLogger.Msg("12 secondes écoulées. Tentative d'injection isolée dans le BoneMenu...");
+            
             try
             {
                 Assembly boneLibAssembly = null;
@@ -57,19 +48,19 @@ namespace FusionDarkRP
 
                 if (boneLibAssembly == null)
                 {
-                    _timerAttente = 0f; // Si BoneLib n'est pas encore là, on réessaye dans 10 secondes
-                    return;
+                    MelonLogger.Warning("BoneLib introuvable. Nouvelle tentative dans 5 secondes.");
+                    MelonCoroutines.Start(AttendreEtInitialiserMenu(5.0f));
+                    yield break;
                 }
 
                 Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
-                if (menuManagerType == null) return;
+                if (menuManagerType == null) yield break;
 
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
-                if (createCategoryMethod == null) return;
+                if (createCategoryMethod == null) yield break;
 
-                // Liaison directe sécurisée
                 _mainCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
-                if (_mainCategory == null) return;
+                if (_mainCategory == null) yield break;
 
                 Type categoryType = _mainCategory.GetType();
                 MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
@@ -96,61 +87,51 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, Color.red);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
-                _menuInitialise = true;
-                MelonLogger.Msg("✅ Menu Roulette DarkRP injecté avec succès dans le BoneMenu !");
+                MelonLogger.Msg("✅ Menu Roulette DarkRP créé avec succès dans le BoneMenu ! Vous pouvez ouvrir votre montre.");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Erreur d'injection : " + ex.Message);
-                _menuInitialise = true;
+                MelonLogger.Error("Erreur d'injection asynchrone : " + ex.Message);
             }
         }
 
-        private void AjouterBoutonJob(object subCategory, string label, Job job, Color color)
+        private static void AjouterBoutonJob(object subCategory, string label, Job job, Color color)
         {
             if (subCategory == null) return;
             MethodInfo createFunction = subCategory.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
-            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => ChangerDeJobLocal(job)) });
+            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AppliquerChangementJob(job)) });
         }
 
-        private void AjouterBoutonAdmin(object subCategory, string label, Job job, Color color)
+        private static void AjouterBoutonAdmin(object subCategory, string label, Job job, Color color)
         {
             if (subCategory == null) return;
             MethodInfo createFunction = subCategory.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
-            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AssignerJobDepuisHote(job)) });
+            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AppliquerJobDepuisHote(job)) });
         }
 
-        private void ChangerDeJobLocal(Job job)
+        private static void AppliquerChangementJob(Job job)
         {
             if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
             MonJobActuel = job;
             MettreAJourMetadataDynamique(job);
         }
 
-        private void AssignerJobDepuisHote(Job jobPatron)
+        private static void AppliquerJobDepuisHote(Job job)
         {
-            try
-            {
-                Assembly fusionAssembly = ObtenirFusionAssembly();
-                if (fusionAssembly == null) return;
-
-                Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
-                PropertyInfo isServerProp = networkInfoType?.GetProperty("IsServer", BindingFlags.Public | BindingFlags.Static);
-                bool isServer = isServerProp != null && (bool)isServerProp.GetValue(null);
-
-                if (!isServer) return;
-
-                MonJobActuel = jobPatron;
-                MettreAJourMetadataDynamique(jobPatron);
-            }
-            catch {}
+            MonJobActuel = job;
+            MettreAJourMetadataDynamique(job);
         }
 
-        private void MettreAJourMetadataDynamique(Job job)
+        private static void MettreAJourMetadataDynamique(Job job)
         {
             try
             {
-                Assembly fusionAssembly = ObtenirFusionAssembly();
+                Assembly fusionAssembly = null;
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asm.GetName().Name == "LabFusion") { fusionAssembly = asm; break; }
+                }
+
                 if (fusionAssembly == null) return;
 
                 Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
@@ -168,44 +149,6 @@ namespace FusionDarkRP
                 sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
             }
             catch {}
-        }
-
-        private Assembly ObtenirFusionAssembly()
-        {
-            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                if (asm.GetName().Name == "LabFusion") return asm;
-            }
-            return null;
-        }
-
-        public override void OnGUI()
-        {
-            GUIStyle style = new GUIStyle();
-            style.fontSize = 24;
-            style.richText = true;
-            style.normal.textColor = ObtenirCouleurJob(MonJobActuel);
-            GUI.Label(new Rect(30, Screen.height - 60, 400, 50), $"<b>VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}</b>", style);
-        }
-
-        public static Color ObtenirCouleurJob(Job job)
-        {
-            switch (job)
-            {
-                case Job.Maire: return new Color(1f, 0.84f, 0f);
-                case Job.PatronPolice: return new Color(0f, 0.5f, 1f);
-                case Job.Police: return Color.blue;
-                case Job.AgentSecurite: return new Color(0.6f, 0.8f, 1f);
-                case Job.Parrain: return new Color(0.5f, 0f, 0f);
-                case Job.Gangster: return Color.red;
-                case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
-                case Job.VendeurArmes: return new Color(1f, 0.5f, 0f);
-                case Job.GardeDuCorps: return Color.gray;
-                case Job.Depanneur: return Color.yellow;
-                case Job.Mercenaire: return Color.black;
-                case Job.Medecin: return Color.green;
-                default: return Color.white;
-            }
         }
     }
 }
