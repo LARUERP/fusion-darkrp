@@ -21,30 +21,23 @@ namespace FusionDarkRP
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
         private static object _darkRPCategory = null;
-        private static bool _menuInitialise = false;
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP (Sécurité Matérielle) Initialisé.");
-            MelonLogger.Msg("Une fois en jeu sur votre carte, appuyez sur X ou Y pour générer le menu !");
+            MelonLogger.Msg("Mod Fusion DarkRP branché de manière passive.");
         }
 
-        // Interception de la pression des boutons de la manette gauche
-        public override void OnUpdate()
+        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
-            if (!_menuInitialise)
+            if (_darkRPCategory == null)
             {
-                if (Input.GetKeyDown(KeyCode.JoystickButton2) || Input.GetKeyDown(KeyCode.JoystickButton3))
-                {
-                    MelonLogger.Msg("Pression de touche détectée : Lancement de l'injection sécurisée...");
-                    ForcerCreationMenuFactions();
-                }
+                TenterInjectionMenuBoneLib();
             }
         }
 
-        private static void ForcerCreationMenuFactions()
+        private static void TenterInjectionMenuBoneLib()
         {
-            if (_menuInitialise) return;
+            if (_darkRPCategory != null) return;
 
             try
             {
@@ -54,32 +47,41 @@ namespace FusionDarkRP
                     if (asm.GetName().Name == "BoneLib") { boneLibAssembly = asm; break; }
                 }
 
-                if (boneLibAssembly == null)
-                {
-                    MelonLogger.Warning("Liaison temporairement impossible : Lancez d'abord une carte de jeu.");
-                    return;
-                }
+                if (boneLibAssembly == null) return;
 
                 Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
-                if (menuManagerType == null) return;
+                PropertyInfo categoriesProp = menuManagerType?.GetProperty("Categories", BindingFlags.Public | BindingFlags.Static);
+                if (categoriesProp == null) return;
+                
+                var categoriesList = categoriesProp.GetValue(null) as IEnumerable<object>;
+                object boneLibMainCategory = null;
 
-                MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
-                if (createCategoryMethod == null) return;
+                foreach (var cat in categoriesList)
+                {
+                    string name = cat.GetType().GetProperty("Name")?.GetValue(cat) as string;
+                    if (name == "BoneLib")
+                    {
+                        boneLibMainCategory = cat;
+                        break;
+                    }
+                }
 
-                _darkRPCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
+                if (boneLibMainCategory == null) return;
+
+                MethodInfo createCategoryMethod = boneLibMainCategory.GetType().GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
+                _darkRPCategory = createCategoryMethod?.Invoke(boneLibMainCategory, new object[] { "Fusion DarkRP", Color.yellow });
+
                 if (_darkRPCategory == null) return;
 
                 Type categoryType = _darkRPCategory.GetType();
                 MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
 
-                // Section 1 : Emplois publics
                 object publicCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Jobs Publics", Color.white });
                 AjouterBoutonJob(publicCat, "Devenir Citoyen", Job.Citoyen, Color.white);
                 AjouterBoutonJob(publicCat, "Devenir Medecin", Job.Medecin, Color.green);
                 AjouterBoutonJob(publicCat, "Devenir Depanneur", Job.Depanneur, Color.yellow);
                 AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, Color.cyan);
 
-                // Section 2 : Hiérarchies de Factions
                 object factionCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Rejoindre Faction", Color.gray });
                 AjouterBoutonJob(factionCat, "Devenir Policier", Job.Police, Color.blue);
                 AjouterBoutonJob(factionCat, "Devenir Agent Securite", Job.AgentSecurite, Color.cyan);
@@ -87,19 +89,19 @@ namespace FusionDarkRP
                 AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, Color.red);
                 AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, Color.gray);
 
-                // Section 3 : Commandement d'administration
                 object adminCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Menu Admin Hote", Color.red });
+                adminCat.CreateSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
+                
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, new Color(1.0f, 0.84f, 0.0f));
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", Job.PatronPolice, Color.blue);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, Color.red);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
-                _menuInitialise = true;
-                MelonLogger.Msg("✅ Mod Fusion DarkRP injecté avec succès ! Ouvrez votre montre.");
+                MelonLogger.Msg("✅ Mod Fusion DarkRP injecté comme option officielle à l'intérieur de BoneLib !");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Erreur d'injection matérielle : " + ex.Message);
+                MelonLogger.Error("Erreur d'injection dans BoneLib : " + ex.Message);
             }
         }
 
