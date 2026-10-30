@@ -6,6 +6,12 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="MelonLoader">
+      <HintPath>Libs/MelonLoader.dll</HintPath>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>Libs/Il2Cppmscorlib.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>Libs/UnityEngine.CoreModule.dll</HintPath>
     </Reference>
