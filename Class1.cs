@@ -20,63 +20,44 @@ namespace FusionDarkRP
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
         private static object _darkRPCategory = null;
+        private static bool _menuInitialise = false;
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP branché de manière passive.");
-            
-            // LA SOLUTION FINALE : On s'abonne à l'événement de chargement de BoneLib via la Reflection.
-            // Le mod ne fait STRICTEMENT RIEN au démarrage de BONELAB (Zéro écran noir).
-            try
-            {
-                Assembly boneLibAsm = null;
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asm.GetName().Name == "BoneLib") { boneLibAsm = asm; break; }
-                }
+            MelonLogger.Msg("Mod Fusion DarkRP v5 (Liaison Native Sub-Scene) Initialisé !");
+        }
 
-                if (boneLibAsm != null)
-                {
-                    Type hookingType = boneLibAsm.GetType("BoneLib.Hooking");
-                    EventInfo levelLoadedEvent = hookingType?.GetEvent("OnLevelLoaded");
-                    
-                    if (levelLoadedEvent != null)
-                    {
-                        Action<object> callback = new Action<object>(AuChargementDeLaCarte);
-                        Delegate handler = Delegate.CreateDelegate(levelLoadedEvent.EventHandlerType, callback.Method);
-                        levelLoadedEvent.AddEventHandler(null, handler);
-                        MelonLogger.Msg("Ancrage de sécurité réussi dans BoneLib !");
-                    }
-                }
-            }
-            catch (Exception ex)
+        // Cet événement officiel de MelonLoader se déclenche automatiquement dès que ta carte (le niveau 3D) est chargée.
+        // C'est 100% stable car le chargement initial est fini, évitant définitivement l'écran noir.
+        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
+        {
+            if (!_menuInitialise)
             {
-                MelonLogger.Error("Erreur d'ancrage Hook : " + ex.Message);
+                ExecuterInjectionBoneMenu();
             }
         }
 
-        // Cette fonction est appelée uniquement quand tu es physiquement sur la carte en VR
-        private static void AuChargementDeLaCarte(object levelInfo)
+        private static void ExecuterInjectionBoneMenu()
         {
-            if (_darkRPCategory != null) return;
+            if (_menuInitialise) return;
 
             try
             {
-                Assembly boneLibAsm = null;
+                Assembly boneLibAssembly = null;
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    if (asm.GetName().Name == "BoneLib") { boneLibAsm = asm; break; }
+                    if (asm.GetName().Name == "BoneLib") { boneLibAssembly = asm; break; }
                 }
 
-                if (boneLibAsm == null) return;
+                if (boneLibAssembly == null) return;
 
-                Type menuManagerType = boneLibAsm.GetType("BoneLib.BoneMenu.MenuManager");
+                Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
                 if (menuManagerType == null) return;
 
+                // Récupération dynamique du type de Couleur natif d'Unity
                 Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
                 if (colorType == null) return;
 
-                // Création des couleurs Unity via Reflection pour Android
                 object couleurJaune = Activator.CreateInstance(colorType, new object[] { 1f, 0.92f, 0.016f, 1f });
                 object couleurBlanche = colorType.GetProperty("white").GetValue(null);
                 object couleurVerte = colorType.GetProperty("green").GetValue(null);
@@ -89,21 +70,21 @@ namespace FusionDarkRP
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
                 if (createCategoryMethod == null) return;
 
-                // Création directe de la catégorie racine jaune "Fusion DarkRP"
+                // Création directe de notre catégorie racine autonome "Fusion DarkRP" dans le panneau de ton BoneMenu
                 _darkRPCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", couleurJaune });
                 if (_darkRPCategory == null) return;
 
                 Type categoryType = _darkRPCategory.GetType();
                 MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
 
-                // 1. Sous-Menu : Jobs Publics
+                // Section 1 : Emplois publics
                 object publicCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Jobs Publics", couleurBlanche });
                 AjouterBoutonJob(publicCat, "Devenir Citoyen", Job.Citoyen, couleurBlanche);
                 AjouterBoutonJob(publicCat, "Devenir Medecin", Job.Medecin, couleurVerte);
                 AjouterBoutonJob(publicCat, "Devenir Depanneur", Job.Depanneur, couleurJaune);
                 AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, couleurCyan);
 
-                // 2. Sous-Menu : Hiérarchies de Factions
+                // Section 2 : Hiérarchies de Factions
                 object factionCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Rejoindre Faction", couleurGrise });
                 AjouterBoutonJob(factionCat, "Devenir Policier", Job.Police, couleurBleue);
                 AjouterBoutonJob(factionCat, "Devenir Agent Securite", Job.AgentSecurite, couleurCyan);
@@ -111,7 +92,7 @@ namespace FusionDarkRP
                 AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, couleurRouge);
                 AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, couleurGrise);
 
-                // 3. Sous-Menu : Commandement d'administration (Hôte)
+                // Section 3 : Commandement d'administration (Réservé à l'Hôte du serveur)
                 object adminCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Menu Admin Hote", couleurRouge });
                 object couleurOr = Activator.CreateInstance(colorType, new object[] { 1.0f, 0.84f, 0.0f, 1.0f });
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, couleurOr);
@@ -119,11 +100,12 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, couleurRouge);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, couleurNoire);
 
-                MelonLogger.Msg("✅ [Succès Quest 3] Menu Fusion DarkRP généré avec succès !");
+                _menuInitialise = true;
+                MelonLogger.Msg("✅ [BoneMenu Success] Catégorie Fusion DarkRP créée avec succès dans les menus !");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Erreur lors de la génération tardive du menu : " + ex.Message);
+                MelonLogger.Error("Erreur d'injection : " + ex.Message);
             }
         }
 
@@ -154,10 +136,10 @@ namespace FusionDarkRP
         {
             try
             {
-                Assembly fusionAsm = ObtenirFusionAssembly();
-                if (fusionAsm == null) return;
+                Assembly fusionAssembly = ObtenirFusionAssembly();
+                if (fusionAssembly == null) return;
 
-                Type networkInfoType = fusionAsm.GetType("LabFusion.Network.NetworkInfo");
+                Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
                 PropertyInfo isServerProp = networkInfoType?.GetProperty("IsServer", BindingFlags.Public | BindingFlags.Static);
                 bool isServer = isServerProp != null && (bool)isServerProp.GetValue(null);
 
@@ -173,31 +155,33 @@ namespace FusionDarkRP
         {
             try
             {
-                Assembly fusionAsm = ObtenirFusionAssembly();
-                if (fusionAsm == null) return;
+                Assembly fusionAssembly = ObtenirFusionAssembly();
+                if (fusionAssembly == null) return;
 
-                Type networkInfoType = fusionAsm.GetType("LabFusion.Network.NetworkInfo");
+                Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
                 PropertyInfo hasServerProp = networkInfoType?.GetProperty("HasServer", BindingFlags.Public | BindingFlags.Static);
                 if (hasServerProp == null || !(bool)hasServerProp.GetValue(null)) return;
 
-                Type playerIdManagerType = fusionAsm.GetType("LabFusion.Utilities.PlayerIdManager");
+                Type playerIdManagerType = fusionAssembly.GetType("LabFusion.Utilities.PlayerIdManager");
                 PropertyInfo localSmallIdProp = playerIdManagerType?.GetProperty("LocalSmallId", BindingFlags.Public | BindingFlags.Static);
                 if (localSmallIdProp == null) return;
                 byte localId = (byte)localSmallIdProp.GetValue(null);
 
-                Type playerSenderType = fusionAsm.GetType("LabFusion.Network.PlayerSender");
+                Type playerSenderType = fusionAssembly.GetType("LabFusion.Network.PlayerSender");
                 MethodInfo sendRequest = playerSenderType?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
-                sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString().ToUpper() });
-}
-catch {}
-}
-private static Assembly ObtenirFusionAssembly()
-{
-foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-{
-if (asm.GetName().Name == "LabFusion") return asm;
-}
-return null;
-}
-}
+                
+                sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
+            }
+            catch {}
+        }
+
+        private static Assembly ObtenirFusionAssembly()
+        {
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.GetName().Name == "LabFusion") return asm;
+            }
+            return null;
+        }
+    }
 }
