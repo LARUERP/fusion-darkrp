@@ -22,21 +22,17 @@ namespace FusionDarkRP
         public static string MetadataKey = "DarkRP_Job";
         private static object _mainCategory = null;
 
-        // ÉVITEMENT CRITIQUE DES CRASHS : Plus aucune méthode OnUpdate() ou OnGUI() n'est présente dans ce mod.
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod DarkRP chargé. Lancement de la coroutine de sécurité anti-écran noir...");
-            
-            // On enregistre une fonction d'attente qui va s'exécuter de façon asynchrone sans bloquer l'affichage VR
-            MelonCoroutines.Start(AttendreEtInitialiserMenu(12.0f));
+            MelonLogger.Msg("Mod DarkRP chargé avec succès. Démarrage de la veille asynchrone...");
+            MelonCoroutines.Start(AttendreEtInitialiserMenu(15.0f)); // On passe à 15 secondes pour être 100% sûr que BoneLib est réveillé
         }
 
         private static System.Collections.IEnumerator AttendreEtInitialiserMenu(float temps)
         {
-            // Le script s'endort complètement pendant 12 secondes pour laisser le Quest 3 charger la map et le son
             yield return new WaitForSeconds(temps);
 
-            MelonLogger.Msg("12 secondes écoulées. Tentative d'injection isolée dans le BoneMenu...");
+            MelonLogger.Msg("15 secondes écoulées. Injection dans le BoneMenu en mode sécurisé...");
             
             try
             {
@@ -56,14 +52,38 @@ namespace FusionDarkRP
                 Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
                 if (menuManagerType == null) yield break;
 
-                MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
+                // CORRECTION CRITIQUE : Utilisation de la méthode de signature universelle sans l'objet Color complexe de Unity
+                MethodInfo[] methodes = menuManagerType.GetMethods(BindingFlags.Public | BindingFlags.Static);
+                MethodInfo createCategoryMethod = null;
+
+                foreach (var m in methodes)
+                {
+                    if (m.Name == "CreateCategory" && m.GetParameters().Length == 2)
+                    {
+                        createCategoryMethod = m;
+                        break;
+                    }
+                }
+
                 if (createCategoryMethod == null) yield break;
 
+                // On instancie la catégorie avec la couleur par défaut pour contourner le bug d'assemblage
                 _mainCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
                 if (_mainCategory == null) yield break;
 
                 Type categoryType = _mainCategory.GetType();
-                MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
+                MethodInfo createSubCategoryMethod = null;
+
+                foreach (var m in categoryType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    if (m.Name == "CreateCategory" && m.GetParameters().Length == 2)
+                    {
+                        createSubCategoryMethod = m;
+                        break;
+                    }
+                }
+
+                if (createSubCategoryMethod == null) yield break;
 
                 // Section 1 : Emplois publics
                 object publicCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Jobs Publics", Color.white });
@@ -82,12 +102,12 @@ namespace FusionDarkRP
 
                 // Section 3 : Commandement d'administration
                 object adminCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Menu Admin Hote", Color.red });
-                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, new Color(1.0f, 0.84f, 0.0f));
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, Color.yellow);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", Job.PatronPolice, Color.blue);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, Color.red);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
-                MelonLogger.Msg("✅ Menu Roulette DarkRP créé avec succès dans le BoneMenu ! Vous pouvez ouvrir votre montre.");
+                MelonLogger.Msg("✅ Menu Roulette DarkRP créé avec succès dans le BoneMenu !");
             }
             catch (Exception ex)
             {
