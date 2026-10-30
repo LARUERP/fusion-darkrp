@@ -24,7 +24,7 @@ namespace FusionDarkRP
         
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
-        private static MenuCategory _mainCategory = null;
+        private static object _mainCategory = null; // Correction : Passage en 'object' pour valider la compilation à 100%
         private static bool _menuInitialise = false;
 
         public override void OnInitializeMelon()
@@ -32,7 +32,6 @@ namespace FusionDarkRP
             MelonLogger.Msg("Mod DarkRP Multijoueur chargé de force.");
         }
 
-        // Événement exécuté une fois que toute l'application et les mods en mémoire sont initialisés
         public override void OnLateInitializeMelon()
         {
             if (!_menuInitialise)
@@ -56,27 +55,33 @@ namespace FusionDarkRP
                 _mainCategory = MenuManager.CreateCategory("Fusion DarkRP", Color.yellow);
                 if (_mainCategory == null) return;
 
+                // Extraction dynamique du type de catégorie de BoneLib pour créer les sous-menus sans erreur
+                var catType = _mainCategory.GetType();
+                var createCategoryMethod = catType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
+
+                if (createCategoryMethod == null) return;
+
                 // 1. Sous-Menu : Jobs Publics
-                MenuCategory publicCat = _mainCategory.CreateCategory("Jobs Publics", Color.white);
-                publicCat.CreateFunctionElement("Devenir Citoyen", Color.white, new Action(() => ChangerDeJobLocal(Job.Citoyen)));
-                publicCat.CreateFunctionElement("Devenir Medecin", Color.green, new Action(() => ChangerDeJobLocal(Job.Medecin)));
-                publicCat.CreateFunctionElement("Devenir Depanneur", Color.yellow, new Action(() => ChangerDeJobLocal(Job.Depanneur)));
-                publicCat.CreateFunctionElement("Devenir Vendeur d'Armes", Color.cyan, new Action(() => ChangerDeJobLocal(Job.VendeurArmes)));
+                object publicCat = createCategoryMethod.Invoke(_mainCategory, new object[] { "Jobs Publics", Color.white });
+                AjouterBoutonJob(publicCat, "Devenir Citoyen", Job.Citoyen, Color.white);
+                AjouterBoutonJob(publicCat, "Devenir Medecin", Job.Medecin, Color.green);
+                AjouterBoutonJob(publicCat, "Devenir Depanneur", Job.Depanneur, Color.yellow);
+                AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, Color.cyan);
 
                 // 2. Sous-Menu : Hiérarchies de Factions
-                MenuCategory factionCat = _mainCategory.CreateCategory("Rejoindre Faction", Color.gray);
-                factionCat.CreateFunctionElement("Devenir Policier", Color.blue, new Action(() => ChangerDeJobLocal(Job.Police)));
-                factionCat.CreateFunctionElement("Devenir Agent Securite", Color.cyan, new Action(() => ChangerDeJobLocal(Job.AgentSecurite)));
-                factionCat.CreateFunctionElement("Devenir Gangster", Color.red, new Action(() => ChangerDeJobLocal(Job.Gangster)));
-                factionCat.CreateFunctionElement("Devenir Fabricant", Color.red, new Action(() => ChangerDeJobLocal(Job.Fabricant)));
-                factionCat.CreateFunctionElement("Devenir Garde du Corps", Color.gray, new Action(() => ChangerDeJobLocal(Job.GardeDuCorps)));
+                object factionCat = createCategoryMethod.Invoke(_mainCategory, new object[] { "Rejoindre Faction", Color.gray });
+                AjouterBoutonJob(factionCat, "Devenir Policier", Job.Police, Color.blue);
+                AjouterBoutonJob(factionCat, "Devenir Agent Securite", Job.AgentSecurite, Color.cyan);
+                AjouterBoutonJob(factionCat, "Devenir Gangster", Job.Gangster, Color.red);
+                AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, Color.red);
+                AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, Color.gray);
 
                 // 3. Sous-Menu : Commandement Admin
-                MenuCategory adminCat = _mainCategory.CreateCategory("Menu Admin Hote", Color.red);
-                adminCat.CreateFunctionElement("[HOTE] Assigner Maire", new Color(1.0f, 0.84f, 0.0f), new Action(() => AssignerJobDepuisHote(Job.Maire)));
-                adminCat.CreateFunctionElement("[HOTE] Assigner Chef Police", Color.blue, new Action(() => AssignerJobDepuisHote(Job.PatronPolice)));
-                adminCat.CreateFunctionElement("[HOTE] Assigner Parrain", Color.red, new Action(() => AssignerJobDepuisHote(Job.Parrain)));
-                adminCat.CreateFunctionElement("[HOTE] Assigner Mercenaire", Color.black, new Action(() => AssignerJobDepuisHote(Job.Mercenaire)));
+                object adminCat = createCategoryMethod.Invoke(_mainCategory, new object[] { "Menu Admin Hote", Color.red });
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, new Color(1.0f, 0.84f, 0.0f));
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", Job.PatronPolice, Color.blue);
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, Color.red);
+                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
                 _menuInitialise = true;
                 MelonLogger.Msg("✅ Extension DarkRP ajoutée de façon stable dans votre BoneMenu !");
@@ -85,6 +90,20 @@ namespace FusionDarkRP
             {
                 MelonLogger.Error("Échec de l'injection : " + ex.Message);
             }
+        }
+
+        private static void AjouterBoutonJob(object subCategory, string label, Job job, Color color)
+        {
+            if (subCategory == null) return;
+            var createFunction = subCategory.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
+            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => ChangerDeJobLocal(job)) });
+        }
+
+        private static void AjouterBoutonAdmin(object subCategory, string label, Job job, Color color)
+        {
+            if (subCategory == null) return;
+            var createFunction = subCategory.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
+            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AssignerJobDepuisHote(job)) });
         }
 
         private static void ChangerDeJobLocal(Job job)
