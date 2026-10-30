@@ -27,8 +27,7 @@ namespace FusionDarkRP
             MelonLogger.Msg("Mod Fusion DarkRP branché de manière passive.");
         }
 
-        // Utilisation de la méthode d'écoute de scène officielle de MelonLoader
-        // Le mod dort pendant le chargement initial (0% écran noir) et s'éveille une fois la carte chargée
+        // Le mod dort pendant le chargement initial et s'éveille une fois la carte chargée
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
             if (_darkRPCategory == null)
@@ -37,7 +36,7 @@ namespace FusionDarkRP
             }
         }
 
-        private static void TenterInjectionMenuBoneMenu()
+        private static void TenterInjectionMenuBoneLib()
         {
             if (_darkRPCategory != null) return;
 
@@ -125,7 +124,7 @@ namespace FusionDarkRP
             createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AssignerJobDepuisHote(job)) });
         }
 
-        private static void ChangerDeJobLocal(Job job)
+        private void ChangerDeJobLocal(Job job)
         {
             if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
             MonJobActuel = job;
@@ -170,7 +169,6 @@ namespace FusionDarkRP
                 Type playerSenderType = fusionAssembly.GetType("LabFusion.Network.PlayerSender");
                 MethodInfo sendRequest = playerSenderType?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
                 
-                // Envoi réseau dynamique 100% stable sans dépendance directe
                 sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
             }
             catch {}
