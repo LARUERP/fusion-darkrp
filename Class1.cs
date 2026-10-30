@@ -25,21 +25,32 @@ namespace FusionDarkRP
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod DarkRP Multijoueur chargé.");
+            MelonLogger.Msg("Mod DarkRP Multijoueur chargé en mode sécurité passive (Zéro crash).");
         }
 
-        public override void OnLateInitializeMelon()
+        // LA METHODE SUPRÊME : On utilise OnGUI. C'est le moteur graphique qui l'affiche.
+        // Si le menu n'est pas encore créé, il y a juste un bouton discret. Dès que tu cliques dessus, tout s'injecte !
+        public override void OnGUI()
         {
+            // 1. Affichage texte du Job en bas à gauche de la vue
+            GUIStyle styleHUD = new GUIStyle();
+            styleHUD.fontSize = 22;
+            styleHUD.richText = true;
+            styleHUD.normal.textColor = ObtenirCouleurJob(MonJobActuel);
+            GUI.Label(new Rect(40, Screen.height - 60, 400, 40), $"<b>VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}</b>", styleHUD);
+
+            // 2. Bouton d'activation manuel pour créer la roulette dans ta montre
             if (!_menuInitialise)
             {
-                // On crée un conteneur Unity passif pour gérer le délai sans bloquer MelonLoader
-                GameObject darkRPUpdater = new GameObject("DarkRP_Updater");
-                darkRPUpdater.AddComponent<MenuDelayComponent>();
-                UnityEngine.Object.DontDestroyOnLoad(darkRPUpdater);
+                if (GUI.Button(new Rect(30, 30, 200, 45), "Activer Menu Factions"))
+                {
+                    MelonLogger.Msg("Bouton pressé : Injection sécurisée du BoneMenu demandée.");
+                    ExecuterInitialisationMenu();
+                }
             }
         }
 
-        public static void ExecuterInitialisationMenu()
+        private static void ExecuterInitialisationMenu()
         {
             if (_menuInitialise) return;
 
@@ -51,7 +62,11 @@ namespace FusionDarkRP
                     if (asm.GetName().Name == "BoneLib") { boneLibAssembly = asm; break; }
                 }
 
-                if (boneLibAssembly == null) return;
+                if (boneLibAssembly == null)
+                {
+                    MelonLogger.Warning("Liaison impossible : BoneLib n'est pas encore présent en mémoire !");
+                    return;
+                }
 
                 Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
                 if (menuManagerType == null) return;
@@ -59,20 +74,21 @@ namespace FusionDarkRP
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
                 if (createCategoryMethod == null) return;
 
+                // Création de la catégorie principale jaune
                 _mainCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
                 if (_mainCategory == null) return;
 
                 Type categoryType = _mainCategory.GetType();
                 MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
 
-                // 1. Sous-Menu : Jobs Publics
+                // Section 1 : Emplois publics
                 object publicCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Jobs Publics", Color.white });
                 AjouterBoutonJob(publicCat, "Devenir Citoyen", Job.Citoyen, Color.white);
                 AjouterBoutonJob(publicCat, "Devenir Medecin", Job.Medecin, Color.green);
                 AjouterBoutonJob(publicCat, "Devenir Depanneur", Job.Depanneur, Color.yellow);
                 AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, Color.cyan);
 
-                // 2. Sous-Menu : Hiérarchies de Factions
+                // Section 2 : Hiérarchies de Factions
                 object factionCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Rejoindre Faction", Color.gray });
                 AjouterBoutonJob(factionCat, "Devenir Policier", Job.Police, Color.blue);
                 AjouterBoutonJob(factionCat, "Devenir Agent Securite", Job.AgentSecurite, Color.cyan);
@@ -80,7 +96,7 @@ namespace FusionDarkRP
                 AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, Color.red);
                 AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, Color.gray);
 
-                // 3. Sous-Menu : Commandement Admin
+                // Section 3 : Commandement d'administration
                 object adminCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Menu Admin Hote", Color.red });
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, new Color(1.0f, 0.84f, 0.0f));
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", Job.PatronPolice, Color.blue);
@@ -169,15 +185,6 @@ namespace FusionDarkRP
             return null;
         }
 
-        public override void OnGUI()
-        {
-            GUIStyle style = new GUIStyle();
-            style.fontSize = 24;
-            style.richText = true;
-            style.normal.textColor = ObtenirCouleurJob(MonJobActuel);
-            GUI.Label(new Rect(30, Screen.height - 60, 400, 50), $"<b>VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}</b>", style);
-        }
-
         public static Color ObtenirCouleurJob(Job job)
         {
             switch (job)
@@ -196,23 +203,6 @@ namespace FusionDarkRP
                 case Job.Medecin: return Color.green;
                 default: return Color.white;
             }
-        }
-    }
-
-    public class MenuDelayComponent : MonoBehaviour
-    {
-        public MenuDelayComponent(IntPtr ptr) : base(ptr) {}
-
-        void Start()
-        {
-            // Attente de sécurité de 15 secondes pour laisser charger la map en VR
-            Invoke("DeclencherMenu", 15.0f);
-        }
-
-        void DeclencherMenu()
-        {
-            MainMod.ExecuterInitialisationMenu();
-            Destroy(gameObject);
         }
     }
 }
