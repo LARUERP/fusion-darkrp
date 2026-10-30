@@ -21,24 +21,32 @@ namespace FusionDarkRP
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
         private static object _darkRPCategory = null;
+        private static bool _menuInitialise = false;
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP branché de manière passive.");
+            MelonLogger.Msg("Mod Fusion DarkRP (Sécurité Matérielle) Initialisé.");
+            MelonLogger.Msg("Une fois en jeu sur votre carte, appuyez sur X ou Y pour générer le menu !");
         }
 
-        // Le mod dort pendant le chargement initial et s'éveille une fois la carte chargée (0% écran noir)
-        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
+        // PROTECTION ABSOLUE : Plus aucune boucle temporelle ou événement Unity instable.
+        // C'est MelonLoader qui intercepte directement vos manettes. Aucun risque d'écran noir.
+        public override void OnUpdate()
         {
-            if (_darkRPCategory == null)
+            if (!_menuInitialise)
             {
-                TenterInjectionMenuBoneLib();
+                // JoystickButton2 et 3 correspondent aux boutons physiques X et Y de la manette gauche Oculus
+                if (Input.GetKeyDown(KeyCode.JoystickButton2) || Input.GetKeyDown(KeyCode.JoystickButton3))
+                {
+                    MelonLogger.Msg("Pression de touche détectée : Lancement de l'injection sécurisée...");
+                    ForcerCreationMenuFactions();
+                }
             }
         }
 
-        private static void TenterInjectionMenuBoneLib()
+        private static void ForcerCreationMenuFactions()
         {
-            if (_darkRPCategory != null) return;
+            if (_menuInitialise) return;
 
             try
             {
@@ -48,33 +56,21 @@ namespace FusionDarkRP
                     if (asm.GetName().Name == "BoneLib") { boneLibAssembly = asm; break; }
                 }
 
-                if (boneLibAssembly == null) return;
-
-                // Recherche du gestionnaire de menu de BoneLib
-                Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
-                PropertyInfo categoriesProp = menuManagerType?.GetProperty("Categories", BindingFlags.Public | BindingFlags.Static);
-                if (categoriesProp == null) return;
-                
-                var categoriesList = categoriesProp.GetValue(null) as IEnumerable<object>;
-                object boneLibMainCategory = null;
-
-                // On cherche l'onglet officiel existant "BoneLib" dans la montre
-                foreach (var cat in categoriesList)
+                if (boneLibAssembly == null)
                 {
-                    string name = cat.GetType().GetProperty("Name")?.GetValue(cat) as string;
-                    if (name == "BoneLib")
-                    {
-                        boneLibMainCategory = cat;
-                        break;
-                    }
+                    MelonLogger.Warning("Liaison temporairement impossible : Lancez d'abord une carte de jeu.");
+                    return;
                 }
 
-                if (boneLibMainCategory == null) return;
+                Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
+                if (menuManagerType == null) return;
 
-                // On crée notre sous-catégorie jaune à l'intérieur de l'onglet officiel BoneLib
-                MethodInfo createCategoryMethod = boneLibMainCategory.GetType().GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
-                _darkRPCategory = createCategoryMethod?.Invoke(boneLibMainCategory, new object[] { "Fusion DarkRP", Color.yellow });
+                // Solution de contournement hybride : On cherche d'abord la racine du menu
+                MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
+                if (createCategoryMethod == null) return;
 
+                // Création directe de notre catégorie principale jaune autonome
+                _darkRPCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
                 if (_darkRPCategory == null) return;
 
                 Type categoryType = _darkRPCategory.GetType();
@@ -102,11 +98,12 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, Color.red);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
-                MelonLogger.Msg("✅ Mod Fusion DarkRP injecté comme option officielle à l'intérieur de BoneLib !");
+                _menuInitialise = true;
+                MelonLogger.Msg("✅ Mod Fusion DarkRP injecté avec succès ! Ouvrez votre montre.");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Erreur d'injection dans BoneLib : " + ex.Message);
+                MelonLogger.Error("Erreur d'injection matérielle : " + ex.Message);
             }
         }
 
@@ -124,7 +121,6 @@ namespace FusionDarkRP
             createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AssignerJobDepuisHote(job)) });
         }
 
-        // CORRECTION UNIQUE : Ajout du mot-clé static exigé pour l'appel de bouton
         private static void ChangerDeJobLocal(Job job)
         {
             if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
