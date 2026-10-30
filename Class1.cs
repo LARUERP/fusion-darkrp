@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using MelonLoader;
+using BoneLib;
+using BoneLib.BoneMenu;
+using LabFusion.Network;
+using LabFusion.Representation;
+using LabFusion.Utilities;
 using UnityEngine;
 
 [assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
@@ -20,155 +24,145 @@ namespace FusionDarkRP
         
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
-        private static object _mainCategory = null;
+        private static MenuCategory _mainCategory = null;
+        private static bool _menuInitialise = false;
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod DarkRP chargé avec succès. Démarrage de la veille asynchrone...");
-            MelonCoroutines.Start(AttendreEtInitialiserMenu(15.0f)); // On passe à 15 secondes pour être 100% sûr que BoneLib est réveillé
+            MelonLogger.Msg("Mod DarkRP Multijoueur chargé. En attente du chargement de la carte...");
         }
 
-        private static System.Collections.IEnumerator AttendreEtInitialiserMenu(float temps)
+        // Utilisation de l'événement officiel de chargement de niveau d'Unity
+        public override void OnLevelWasLoaded(int level)
         {
-            yield return new WaitForSeconds(temps);
+            if (!_menuInitialise)
+            {
+                // Anti-crash Quest 3 : On crée un objet Unity invisible pour gérer l'attente de sécurité
+                GameObject darkRPUpdater = new GameObject("DarkRP_Updater");
+                darkRPUpdater.AddComponent<MenuDelayComponent>();
+                UnityEngine.Object.DontDestroyOnLoad(darkRPUpdater);
+            }
+        }
 
-            MelonLogger.Msg("15 secondes écoulées. Injection dans le BoneMenu en mode sécurisé...");
-            
+        public static void ExecuterInitialisationMenu()
+        {
+            if (_menuInitialise) return;
+
             try
             {
-                Assembly boneLibAssembly = null;
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asm.GetName().Name == "BoneLib") { boneLibAssembly = asm; break; }
-                }
+                MelonLogger.Msg("Création des catégories DarkRP dans la roulette...");
 
-                if (boneLibAssembly == null)
-                {
-                    MelonLogger.Warning("BoneLib introuvable. Nouvelle tentative dans 5 secondes.");
-                    MelonCoroutines.Start(AttendreEtInitialiserMenu(5.0f));
-                    yield break;
-                }
+                // Création directe et officielle via l'API compilée de BoneLib
+                _mainCategory = MenuManager.CreateCategory("Fusion DarkRP", Color.yellow);
+                if (_mainCategory == null) return;
 
-                Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
-                if (menuManagerType == null) yield break;
+                // 1. Sous-Menu : Jobs Publics
+                MenuCategory publicCat = _mainCategory.CreateCategory("Jobs Publics", Color.white);
+                publicCat.CreateFunctionElement("Devenir Citoyen", Color.white, new Action(() => ChangerDeJobLocal(Job.Citoyen)));
+                publicCat.CreateFunctionElement("Devenir Medecin", Color.green, new Action(() => ChangerDeJobLocal(Job.Medecin)));
+                publicCat.CreateFunctionElement("Devenir Depanneur", Color.yellow, new Action(() => ChangerDeJobLocal(Job.Depanneur)));
+                publicCat.CreateFunctionElement("Devenir Vendeur d'Armes", Color.cyan, new Action(() => ChangerDeJobLocal(Job.VendeurArmes)));
 
-                // CORRECTION CRITIQUE : Utilisation de la méthode de signature universelle sans l'objet Color complexe de Unity
-                MethodInfo[] methodes = menuManagerType.GetMethods(BindingFlags.Public | BindingFlags.Static);
-                MethodInfo createCategoryMethod = null;
+                // 2. Sous-Menu : Hiérarchies de Factions
+                MenuCategory factionCat = _mainCategory.CreateCategory("Rejoindre Faction", Color.gray);
+                factionCat.CreateFunctionElement("Devenir Policier", Color.blue, new Action(() => ChangerDeJobLocal(Job.Police)));
+                factionCat.CreateFunctionElement("Devenir Agent Securite", Color.cyan, new Action(() => ChangerDeJobLocal(Job.AgentSecurite)));
+                factionCat.CreateFunctionElement("Devenir Gangster", Color.red, new Action(() => ChangerDeJobLocal(Job.Gangster)));
+                factionCat.CreateFunctionElement("Devenir Fabricant", Color.red, new Action(() => ChangerDeJobLocal(Job.Fabricant)));
+                factionCat.CreateFunctionElement("Devenir Garde du Corps", Color.gray, new Action(() => ChangerDeJobLocal(Job.GardeDuCorps)));
 
-                foreach (var m in methodes)
-                {
-                    if (m.Name == "CreateCategory" && m.GetParameters().Length == 2)
-                    {
-                        createCategoryMethod = m;
-                        break;
-                    }
-                }
+                // 3. Sous-Menu : Commandement Admin
+                MenuCategory adminCat = _mainCategory.CreateCategory("Menu Admin Hote", Color.red);
+                adminCat.CreateFunctionElement("[HOTE] Assigner Maire", new Color(1.0f, 0.84f, 0.0f), new Action(() => AssignerJobDepuisHote(Job.Maire)));
+                adminCat.CreateFunctionElement("[HOTE] Assigner Chef Police", Color.blue, new Action(() => AssignerJobDepuisHote(Job.PatronPolice)));
+                adminCat.CreateFunctionElement("[HOTE] Assigner Parrain", Color.red, new Action(() => AssignerJobDepuisHote(Job.Parrain)));
+                adminCat.CreateFunctionElement("[HOTE] Assigner Mercenaire", Color.black, new Action(() => AssignerJobDepuisHote(Job.Mercenaire)));
 
-                if (createCategoryMethod == null) yield break;
-
-                // On instancie la catégorie avec la couleur par défaut pour contourner le bug d'assemblage
-                _mainCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
-                if (_mainCategory == null) yield break;
-
-                Type categoryType = _mainCategory.GetType();
-                MethodInfo createSubCategoryMethod = null;
-
-                foreach (var m in categoryType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-                {
-                    if (m.Name == "CreateCategory" && m.GetParameters().Length == 2)
-                    {
-                        createSubCategoryMethod = m;
-                        break;
-                    }
-                }
-
-                if (createSubCategoryMethod == null) yield break;
-
-                // Section 1 : Emplois publics
-                object publicCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Jobs Publics", Color.white });
-                AjouterBoutonJob(publicCat, "Devenir Citoyen", Job.Citoyen, Color.white);
-                AjouterBoutonJob(publicCat, "Devenir Medecin", Job.Medecin, Color.green);
-                AjouterBoutonJob(publicCat, "Devenir Depanneur", Job.Depanneur, Color.yellow);
-                AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, Color.cyan);
-
-                // Section 2 : Hiérarchies de Factions
-                object factionCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Rejoindre Faction", Color.gray });
-                AjouterBoutonJob(factionCat, "Devenir Policier", Job.Police, Color.blue);
-                AjouterBoutonJob(factionCat, "Devenir Agent Securite", Job.AgentSecurite, Color.cyan);
-                AjouterBoutonJob(factionCat, "Devenir Gangster", Job.Gangster, Color.red);
-                AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, Color.red);
-                AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, Color.gray);
-
-                // Section 3 : Commandement d'administration
-                object adminCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Menu Admin Hote", Color.red });
-                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, Color.yellow);
-                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", Job.PatronPolice, Color.blue);
-                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, Color.red);
-                AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
-
-                MelonLogger.Msg("✅ Menu Roulette DarkRP créé avec succès dans le BoneMenu !");
+                _menuInitialise = true;
+                MelonLogger.Msg("✅ Extension DarkRP ajoutée avec succès dans votre montre !");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Erreur d'injection asynchrone : " + ex.Message);
+                MelonLogger.Error("Échec de l'injection : " + ex.Message);
             }
         }
 
-        private static void AjouterBoutonJob(object subCategory, string label, Job job, Color color)
+        private static void ChangerDeJobLocal(Job job)
         {
-            if (subCategory == null) return;
-            MethodInfo createFunction = subCategory.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
-            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AppliquerChangementJob(job)) });
-        }
-
-        private static void AjouterBoutonAdmin(object subCategory, string label, Job job, Color color)
-        {
-            if (subCategory == null) return;
-            MethodInfo createFunction = subCategory.GetType().GetMethod("CreateFunctionElement", new Type[] { typeof(string), typeof(Color), typeof(Action) });
-            createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AppliquerJobDepuisHote(job)) });
-        }
-
-        private static void AppliquerChangementJob(Job job)
-        {
-            if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
-            MonJobActuel = job;
-            MettreAJourMetadataDynamique(job);
-        }
-
-        private static void AppliquerJobDepuisHote(Job job)
-        {
-            MonJobActuel = job;
-            MettreAJourMetadataDynamique(job);
-        }
-
-        private static void MettreAJourMetadataDynamique(Job job)
-        {
-            try
+            if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire)
             {
-                Assembly fusionAssembly = null;
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asm.GetName().Name == "LabFusion") { fusionAssembly = asm; break; }
-                }
-
-                if (fusionAssembly == null) return;
-
-                Type networkInfoType = fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
-                PropertyInfo hasServerProp = networkInfoType?.GetProperty("HasServer", BindingFlags.Public | BindingFlags.Static);
-                if (hasServerProp == null || !(bool)hasServerProp.GetValue(null)) return;
-
-                Type playerIdManagerType = fusionAssembly.GetType("LabFusion.Utilities.PlayerIdManager");
-                PropertyInfo localSmallIdProp = playerIdManagerType?.GetProperty("LocalSmallId", BindingFlags.Public | BindingFlags.Static);
-                if (localSmallIdProp == null) return;
-                byte localId = (byte)localSmallIdProp.GetValue(null);
-
-                Type playerSenderType = fusionAssembly.GetType("LabFusion.Network.PlayerSender");
-                MethodInfo sendRequest = playerSenderType?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
-                
-                sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
+                MelonLogger.Warning("Action refusée : Ce grade doit être attribué par l'Hôte.");
+                return;
             }
-            catch {}
+            MonJobActuel = job;
+            MettreAJourMetadataReseau(job);
+        }
+
+        private static void AssignerJobDepuisHote(Job jobPatron)
+        {
+            if (!NetworkInfo.IsServer)
+            {
+                MelonLogger.Warning("Action refusée : Réservé à l'Hôte.");
+                return;
+            }
+            MonJobActuel = jobPatron;
+            MettreAJourMetadataReseau(jobPatron);
+        }
+
+        private static void MettreAJourMetadataReseau(Job job)
+        {
+            if (!NetworkInfo.HasServer) return;
+
+            PlayerSender.SendPlayerMetadataRequest(PlayerIdManager.LocalSmallId, MetadataKey, job.ToString());
+            MelonLogger.Msg($"[Réseau Sync] Métadonnée envoyée : {job}");
+        }
+
+        // Rendu graphique natif à l'écran (IMGUI)
+        public override void OnGUI()
+        {
+            GUIStyle style = new GUIStyle();
+            style.fontSize = 24;
+            style.richText = true;
+            style.normal.textColor = ObtenirCouleurJob(MonJobActuel);
+            GUI.Label(new Rect(30, Screen.height - 60, 400, 50), $"<b>VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}</b>", style);
+        }
+
+        public static Color ObtenirCouleurJob(Job job)
+        {
+            switch (job)
+            {
+                case Job.Maire: return new Color(1f, 0.84f, 0f);
+                case Job.PatronPolice: return new Color(0f, 0.5f, 1f);
+                case Job.Police: return Color.blue;
+                case Job.AgentSecurite: return new Color(0.6f, 0.8f, 1f);
+                case Job.Parrain: return new Color(0.5f, 0f, 0f);
+                case Job.Gangster: return Color.red;
+                case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
+                case Job.VendeurArmes: return new Color(1f, 0.5f, 0f);
+                case Job.GardeDuCorps: return Color.gray;
+                case Job.Depanneur: return Color.yellow;
+                case Job.Mercenaire: return Color.black;
+                case Job.Medecin: return Color.green;
+                default: return Color.white;
+            }
+        }
+    }
+
+    // Le composant magique qui force le Quest 3 à attendre sans faire planter la mémoire
+    public class MenuDelayComponent : MonoBehaviour
+    {
+        public MenuDelayComponent(IntPtr ptr) : base(ptr) {}
+
+        void Start()
+        {
+            // On demande à Unity d'appeler l'initialisation du menu dans exactement 15 secondes
+            Invoke("DeclencherMenu", 15.0f);
+        }
+
+        void DeclencherMenu()
+        {
+            MainMod.ExecuterInitialisationMenu();
+            Destroy(gameObject); // Détruit l'objet updater une fois le menu créé pour libérer la RAM
         }
     }
 }
