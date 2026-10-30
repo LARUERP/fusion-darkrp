@@ -29,15 +29,15 @@ namespace FusionDarkRP
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod DarkRP Multijoueur chargé. En attente du chargement de la carte...");
+            MelonLogger.Msg("Mod DarkRP Multijoueur chargé de force.");
         }
 
-        // Utilisation de l'événement officiel de chargement de niveau d'Unity
-        public override void OnLevelWasLoaded(int level)
+        // Événement exécuté une fois que toute l'application et les mods en mémoire sont initialisés
+        public override void OnLateInitializeMelon()
         {
             if (!_menuInitialise)
             {
-                // Anti-crash Quest 3 : On crée un objet Unity invisible pour gérer l'attente de sécurité
+                // Anti-crash Quest 3 : On délègue l'attente à un objet Unity passif
                 GameObject darkRPUpdater = new GameObject("DarkRP_Updater");
                 darkRPUpdater.AddComponent<MenuDelayComponent>();
                 UnityEngine.Object.DontDestroyOnLoad(darkRPUpdater);
@@ -52,7 +52,7 @@ namespace FusionDarkRP
             {
                 MelonLogger.Msg("Création des catégories DarkRP dans la roulette...");
 
-                // Création directe et officielle via l'API compilée de BoneLib
+                // Liaison directe officielle native de l'API BoneLib
                 _mainCategory = MenuManager.CreateCategory("Fusion DarkRP", Color.yellow);
                 if (_mainCategory == null) return;
 
@@ -79,7 +79,7 @@ namespace FusionDarkRP
                 adminCat.CreateFunctionElement("[HOTE] Assigner Mercenaire", Color.black, new Action(() => AssignerJobDepuisHote(Job.Mercenaire)));
 
                 _menuInitialise = true;
-                MelonLogger.Msg("✅ Extension DarkRP ajoutée avec succès dans votre montre !");
+                MelonLogger.Msg("✅ Extension DarkRP ajoutée de façon stable dans votre BoneMenu !");
             }
             catch (Exception ex)
             {
@@ -117,7 +117,6 @@ namespace FusionDarkRP
             MelonLogger.Msg($"[Réseau Sync] Métadonnée envoyée : {job}");
         }
 
-        // Rendu graphique natif à l'écran (IMGUI)
         public override void OnGUI()
         {
             GUIStyle style = new GUIStyle();
@@ -148,21 +147,20 @@ namespace FusionDarkRP
         }
     }
 
-    // Le composant magique qui force le Quest 3 à attendre sans faire planter la mémoire
     public class MenuDelayComponent : MonoBehaviour
     {
         public MenuDelayComponent(IntPtr ptr) : base(ptr) {}
 
         void Start()
         {
-            // On demande à Unity d'appeler l'initialisation du menu dans exactement 15 secondes
+            // Unity va appeler la création de la roulette exactement 15 secondes après l'initialisation du jeu
             Invoke("DeclencherMenu", 15.0f);
         }
 
         void DeclencherMenu()
         {
             MainMod.ExecuterInitialisationMenu();
-            Destroy(gameObject); // Détruit l'objet updater une fois le menu créé pour libérer la RAM
+            Destroy(gameObject);
         }
     }
 }
