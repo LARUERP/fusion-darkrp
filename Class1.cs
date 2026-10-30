@@ -23,34 +23,34 @@ namespace FusionDarkRP
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP v7 (Abonnement Événements Réseau) Initialisé !");
+            MelonLogger.Msg("Mod Fusion DarkRP v8 (Liaison Client/Serveur FusionHelper) Initialisé !");
             
-            // LA SOLUTION UNIQUE TECHNIQUE : On s'abonne aux écouteurs d'événements officiels de LabFusion
+            // LA SOLUTION CLIENT+SERVEUR : On s'abonne à OnJoinServer qui s'active à chaque connexion FusionHelper !
             try
             {
                 Assembly fusionAssembly = ObtenirFusionAssembly();
                 if (fusionAssembly != null)
                 {
                     Type networkEventsType = fusionAssembly.GetType("LabFusion.Network.MultiplayerHooking");
-                    EventInfo serverStartedEvent = networkEventsType?.GetEvent("OnStartServer");
+                    EventInfo joinServerEvent = networkEventsType?.GetEvent("OnJoinServer");
 
-                    if (serverStartedEvent != null)
+                    if (joinServerEvent != null)
                     {
-                        Action callback = new Action(AuLancementDuServeur);
-                        Delegate handler = Delegate.CreateDelegate(serverStartedEvent.EventHandlerType, callback.Method);
-                        serverStartedEvent.AddEventHandler(null, handler);
-                        MelonLogger.Msg("Abonnement réseau validé ! En attente de la création de la room...");
+                        Action callback = new Action(AuRaccordementReseau);
+                        Delegate handler = Delegate.CreateDelegate(joinServerEvent.EventHandlerType, callback.Method);
+                        joinServerEvent.AddEventHandler(null, handler);
+                        MelonLogger.Msg("Abonnement réseau validé ! En attente du raccordement FusionHelper...");
                     }
                 }
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Erreur d'abonnement aux événements réseau : " + ex.Message);
+                MelonLogger.Error("Erreur d'abonnement réseau : " + ex.Message);
             }
         }
 
-        // Cette méthode s'exécute AUTOMATIQUEMENT à la micro-seconde où ton serveur s'ouvre avec FusionHelper
-        private static void AuLancementDuServeur()
+        // Cette méthode s'exécute AUTOMATIQUEMENT dès que le Quest 3 se lie à la session multijoueur
+        private static void AuRaccordementReseau()
         {
             if (_darkRPCategory != null) return;
 
@@ -82,7 +82,7 @@ namespace FusionDarkRP
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
                 if (createCategoryMethod == null) return;
 
-                // Création physique forcée de la catégorie jaune à la racine du BoneMenu
+                // Création physique forcée de la catégorie jaune à la racine de ton BoneMenu (B -> Preferences -> BoneMenu)
                 _darkRPCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", couleurJaune });
                 if (_darkRPCategory == null) return;
 
@@ -112,11 +112,11 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, couleurRouge);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, couleurNoire);
 
-                MelonLogger.Msg("============== ONGLET SELECTION GENEREE DANS LE BONEMENU CON JOIE ==============");
+                MelonLogger.Msg("============== ONGLET SÉLECTION GÉNÉRÉ DANS LE BONEMENU AVEC SUCCÈS ==============");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("Erreur d'injection au démarrage du serveur : " + ex.Message);
+                MelonLogger.Error("Erreur d'injection au raccordement réseau : " + ex.Message);
             }
         }
 
@@ -185,8 +185,7 @@ namespace FusionDarkRP
             }
             catch {}
         }
-
-        private static Assembly ObtenirFusionAssembly()
+private static Assembly ObtenirFusionAssembly()
 {
 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
 {
