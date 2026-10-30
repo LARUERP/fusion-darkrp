@@ -28,19 +28,25 @@ namespace FusionDarkRP
             MelonLogger.Msg("Mod Fusion DarkRP v9 (Persistance Forcée) Initialisé !");
         }
 
-        // LE FILTRE DE REUSSITE ABSOLU : Au lieu d'écouter un seul événement réseau qui se fait écraser,
-        // le mod vérifie toutes les 2 secondes en jeu si l'onglet jaune a été supprimé ou s'il n'est pas encore créé.
-        // Si le menu a disparu, il le ré-injecte de force en temps réel sur ton serveur !
         public override void OnUpdate()
         {
             if (!_menuInitialise)
             {
-                _compteurTentatives += UnityEngine.Time.deltaTime;
-                if (_compteurTentatives >= 2.0f) // Vérification/Tentative toutes les 2 secondes en jeu
+                try
                 {
-                    _compteurTentatives = 0f;
-                    TenterInjectionMenuBoneLib();
+                    Type timeType = Type.GetType("UnityEngine.Time, UnityEngine.CoreModule");
+                    if (timeType == null) return;
+
+                    float deltaTime = (float)timeType.GetProperty("deltaTime", BindingFlags.Public | BindingFlags.Static).GetValue(null);
+                    _compteurTentatives += deltaTime;
+
+                    if (_compteurTentatives >= 2.0f)
+                    {
+                        _compteurTentatives = 0f;
+                        TenterInjectionMenuBoneLib();
+                    }
                 }
+                catch {}
             }
         }
 
@@ -62,7 +68,6 @@ namespace FusionDarkRP
                 Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
                 if (colorType == null) return;
 
-                // Extraction ou création de l'onglet "Fusion DarkRP"
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
                 if (createCategoryMethod == null) return;
 
@@ -73,16 +78,14 @@ namespace FusionDarkRP
                 Type categoryType = _darkRPCategory.GetType();
                 MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
 
-                // Nettoyage préalable pour éviter les doublons lors des tentatives répétées
                 PropertyInfo elementsProp = categoryType.GetProperty("Elements", BindingFlags.Public | BindingFlags.Instance);
                 if (elementsProp != null)
                 {
                     var elementsList = elementsProp.GetValue(_darkRPCategory) as System.Collections.IList;
                     if (elementsList != null && elementsList.Count > 0)
                     {
-                        // Si le menu contient déjà ses boutons, l'initialisation est officiellement un succès !
                         _menuInitialise = true;
-                        MelonLogger.Msg("✅ [Succès Absolu] L'onglet Fusion DarkRP est stabilisé en mémoire !");
+                        MelonLogger.Msg("✅ [Succès Absolu] L'onglet Fusion DarkRP est stabilisé dans le BoneMenu !");
                         return;
                     }
                 }
@@ -95,14 +98,12 @@ namespace FusionDarkRP
                 object couleurRouge = colorType.GetProperty("red").GetValue(null);
                 object couleurNoire = colorType.GetProperty("black").GetValue(null);
 
-                // Section 1 : Emplois publics
                 object publicCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Jobs Publics", couleurBlanche });
                 AjouterBoutonJob(publicCat, "Devenir Citoyen", Job.Citoyen, couleurBlanche);
                 AjouterBoutonJob(publicCat, "Devenir Medecin", Job.Medecin, couleurVerte);
                 AjouterBoutonJob(publicCat, "Devenir Depanneur", Job.Depanneur, couleurJaune);
                 AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, couleurCyan);
 
-                // Section 2 : Hiérarchies de Factions
                 object factionCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Rejoindre Faction", couleurGrise });
                 AjouterBoutonJob(factionCat, "Devenir Policier", Job.Police, couleurBleue);
                 AjouterBoutonJob(factionCat, "Devenir Agent Securite", Job.AgentSecurite, couleurCyan);
@@ -110,7 +111,6 @@ namespace FusionDarkRP
                 AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, couleurRouge);
                 AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, couleurGrise);
 
-                // Section 3 : Commandement d'administration (Réservé à l'Hôte)
                 object adminCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Menu Admin Hote", couleurRouge });
                 object couleurOr = Activator.CreateInstance(colorType, new object[] { 1.0f, 0.84f, 0.0f, 1.0f });
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, couleurOr);
@@ -183,15 +183,17 @@ namespace FusionDarkRP
                 MethodInfo sendRequest = playerSenderType?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
                 
                 sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
-catch {}
+            }
+            catch {}
+        }
+
+        private static Assembly ObtenirFusionAssembly()
+        {
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.GetName().Name == "LabFusion") return asm;
+            }
+            return null;
+        }
+    }
 }
-private static Assembly ObtenirFusionAssembly()
-{
-foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-{
-if (asm.GetName().Name == "LabFusion") return asm;
-}
-return null;
-}
-}
-}}
