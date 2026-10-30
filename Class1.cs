@@ -27,7 +27,7 @@ namespace FusionDarkRP
             MelonLogger.Msg("Mod Fusion DarkRP branché de manière passive.");
         }
 
-        // Le mod dort pendant le chargement initial et s'éveille une fois la carte chargée
+        // Le mod dort pendant le chargement initial et s'éveille une fois la carte chargée (0% écran noir)
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
         {
             if (_darkRPCategory == null)
@@ -58,7 +58,7 @@ namespace FusionDarkRP
                 var categoriesList = categoriesProp.GetValue(null) as IEnumerable<object>;
                 object boneLibMainCategory = null;
 
-                // On cherche l'onglet officiel existant "BoneLib" dans ta montre
+                // On cherche l'onglet officiel existant "BoneLib" dans la montre
                 foreach (var cat in categoriesList)
                 {
                     string name = cat.GetType().GetProperty("Name")?.GetValue(cat) as string;
@@ -124,7 +124,8 @@ namespace FusionDarkRP
             createFunction?.Invoke(subCategory, new object[] { label, color, (Action)(() => AssignerJobDepuisHote(job)) });
         }
 
-        private void ChangerDeJobLocal(Job job)
+        // CORRECTION UNIQUE : Ajout du mot-clé static exigé pour l'appel de bouton
+        private static void ChangerDeJobLocal(Job job)
         {
             if (job == Job.Maire || job == Job.PatronPolice || job == Job.Parrain || job == Job.Mercenaire) return;
             MonJobActuel = job;
