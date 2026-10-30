@@ -194,3 +194,10 @@ namespace FusionDarkRP
                 guiStyleType.GetProperty("richText").SetValue(styleHUD, true);
 
                 object rectHUD = Activator.CreateInstance(rectType, new object[] { 30f, (float)screenHeight - 60f, 400f, 50f });
+                var labelMethod = guiType.GetMethod("Label", new Type[] { rectType, typeof(string), guiStyleType });
+labelMethod.Invoke(null, new object[] { rectHUD, $"ROLE RP : {MonJobActuel.ToString().ToUpper()}", styleHUD });
+}
+catch {}
+}
+}
+}
