@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using MelonLoader;
 using UnityEngine;
+
+[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.0.0", "LARUERP")]
+[assembly: MelonGame("Stress Level Zero", "BONELAB")]
 
 namespace FusionDarkRP
 {
-    // Classe 100% C# pure, sans aucun héritage de MelonMod pour garantir 0% de chance d'écran noir
-    public class DarkRPLoader
+    public class MainMod : MelonMod
     {
         public enum Job 
         { 
@@ -20,8 +23,34 @@ namespace FusionDarkRP
         private static object _mainCategory = null;
         private static bool _menuInitialise = false;
 
-        // Point d'entrée brut appelé uniquement quand tu décides d'activer tes factions en jeu
-        public static void ForcerInitialisationMenu()
+        public override void OnInitializeMelon()
+        {
+            MelonLogger.Msg("Mod DarkRP en veille de sécurité réseau.");
+        }
+
+        // LE SECRET ANTI-CRASH TOTAL : Le mod ne fait rien du tout au démarrage.
+        // On utilise OnGUI pour afficher un bouton. Dès que ton jeu s'est lancé, tu cliques dessus et ton menu apparaît !
+        public override void OnGUI()
+        {
+            // 1. Rendu du texte du Job en bas à gauche de ton écran
+            GUIStyle styleHUD = new GUIStyle();
+            styleHUD.fontSize = 22;
+            styleHUD.richText = true;
+            styleHUD.normal.textColor = ObtenirCouleurJob(MonJobActuel);
+            GUI.Label(new Rect(40, Screen.height - 60, 400, 40), $"<b>VOTRE ROLE : {MonJobActuel.ToString().ToUpper()}</b>", styleHUD);
+
+            // 2. Bouton d'activation manuel qui apparaît une fois sur la carte
+            if (!_menuInitialise)
+            {
+                if (GUI.Button(new Rect(30, 30, 220, 45), "Initialiser les Factions"))
+                {
+                    MelonLogger.Msg("Bouton pressé : Injection sécurisée du BoneMenu...");
+                    ForcerInitialisationMenu();
+                }
+            }
+        }
+
+        private static void ForcerInitialisationMenu()
         {
             if (_menuInitialise) return;
 
@@ -33,7 +62,11 @@ namespace FusionDarkRP
                     if (asm.GetName().Name == "BoneLib") { boneLibAssembly = asm; break; }
                 }
 
-                if (boneLibAssembly == null) return;
+                if (boneLibAssembly == null)
+                {
+                    MelonLogger.Warning("BoneLib introuvable. Chargez d'abord une carte de jeu.");
+                    return;
+                }
 
                 Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
                 if (menuManagerType == null) return;
@@ -41,20 +74,21 @@ namespace FusionDarkRP
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
                 if (createCategoryMethod == null) return;
 
+                // Création du point d'ancrage principal dans la roulette
                 _mainCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", Color.yellow });
                 if (_mainCategory == null) return;
 
                 Type categoryType = _mainCategory.GetType();
                 MethodInfo createSubCategoryMethod = categoryType.GetMethod("CreateCategory", new Type[] { typeof(string), typeof(Color) });
 
-                // 1. Sous-Menu : Jobs Publics
+                // Section 1 : Emplois publics
                 object publicCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Jobs Publics", Color.white });
                 AjouterBoutonJob(publicCat, "Devenir Citoyen", Job.Citoyen, Color.white);
                 AjouterBoutonJob(publicCat, "Devenir Medecin", Job.Medecin, Color.green);
                 AjouterBoutonJob(publicCat, "Devenir Depanneur", Job.Depanneur, Color.yellow);
                 AjouterBoutonJob(publicCat, "Devenir Vendeur d'Armes", Job.VendeurArmes, Color.cyan);
 
-                // 2. Sous-Menu : Hiérarchies de Factions
+                // Section 2 : Hiérarchies de Factions
                 object factionCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Rejoindre Faction", Color.gray });
                 AjouterBoutonJob(factionCat, "Devenir Policier", Job.Police, Color.blue);
                 AjouterBoutonJob(factionCat, "Devenir Agent Securite", Job.AgentSecurite, Color.cyan);
@@ -62,7 +96,7 @@ namespace FusionDarkRP
                 AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, Color.red);
                 AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, Color.gray);
 
-                // 3. Sous-Menu : Commandement Admin
+                // Section 3 : Commandement d'administration
                 object adminCat = createSubCategoryMethod.Invoke(_mainCategory, new object[] { "Menu Admin Hote", Color.red });
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, new Color(1.0f, 0.84f, 0.0f));
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Chef Police", Job.PatronPolice, Color.blue);
@@ -70,8 +104,12 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, Color.black);
 
                 _menuInitialise = true;
+                MelonLogger.Msg("✅ Roulette DarkRP injectée avec succès !");
             }
-            catch {}
+            catch (Exception ex)
+            {
+                MelonLogger.Error("Erreur d'injection : " + ex.Message);
+            }
         }
 
         private static void AjouterBoutonJob(object subCategory, string label, Job job, Color color)
@@ -145,6 +183,26 @@ namespace FusionDarkRP
                 if (asm.GetName().Name == "LabFusion") return asm;
             }
             return null;
+        }
+
+        public static Color ObtenirCouleurJob(Job job)
+        {
+            switch (job)
+            {
+                case Job.Maire: return new Color(1f, 0.84f, 0f);
+                case Job.PatronPolice: return new Color(0f, 0.5f, 1f);
+                case Job.Police: return Color.blue;
+                case Job.AgentSecurite: return new Color(0.6f, 0.8f, 1f);
+                case Job.Parrain: return new Color(0.5f, 0f, 0f);
+                case Job.Gangster: return Color.red;
+                case Job.Fabricant: return new Color(1f, 0.4f, 0.4f);
+                case Job.VendeurArmes: return new Color(1f, 0.5f, 0f);
+                case Job.GardeDuCorps: return Color.gray;
+                case Job.Depanneur: return Color.yellow;
+                case Job.Mercenaire: return Color.black;
+                case Job.Medecin: return Color.green;
+                default: return Color.white;
+            }
         }
     }
 }
