@@ -20,27 +20,44 @@ namespace FusionDarkRP
         public static Job MonJobActuel = Job.Citoyen;
         public static string MetadataKey = "DarkRP_Job";
         private static object _darkRPCategory = null;
-        private static bool _menuInitialise = false;
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Mod Fusion DarkRP v5 (Liaison Native Sub-Scene) Initialisé !");
+            MelonLogger.Msg("Mod Fusion DarkRP (Mode Injection Manette) Initialisé !");
+            MelonLogger.Msg("Une fois connecté sur votre serveur, appuyez sur X ou Y (Manette Gauche) pour générer l'onglet !");
         }
 
-        // Cet événement officiel de MelonLoader se déclenche automatiquement dès que ta carte (le niveau 3D) est chargée.
-        // C'est 100% stable car le chargement initial est fini, évitant définitivement l'écran noir.
-        public override void OnSceneWasInitialized(int buildIndex, string sceneName)
+        // LE GUARDE-FOU ABSOLU : Au lieu d'injecter au chargement (ce qui se fait écraser par Fusion),
+        // on écoute les boutons matériels de la manette gauche du Quest 3.
+        // Vous rejoignez votre serveur, vous appuyez sur X ou Y, et le menu apparaît instantanément !
+        public override void OnUpdate()
         {
-            if (!_menuInitialise)
+            try
             {
-                ExecuterInjectionBoneMenu();
+                Type inputType = Type.GetType("UnityEngine.Input, UnityEngine.InputLegacyModule");
+                if (inputType == null) return;
+
+                Type keyCodeType = Type.GetType("UnityEngine.KeyCode, UnityEngine.CoreModule");
+                if (keyCodeType == null) return;
+
+                MethodInfo getKeyDownMethod = inputType.GetMethod("GetKeyDown", new Type[] { keyCodeType });
+                if (getKeyDownMethod == null) return;
+
+                // 332 = KeyCode.JoystickButton2 (Bouton X), 333 = KeyCode.JoystickButton3 (Bouton Y)
+                bool toucheXPressee = (bool)getKeyDownMethod.Invoke(null, new object[] { 332 });
+                bool toucheYPressee = (bool)getKeyDownMethod.Invoke(null, new object[] { 333 });
+
+                if (toucheXPressee || toucheYPressee)
+                {
+                    MelonLogger.Msg("Pression détectée sur la manette gauche ! Création forcée du menu...");
+                    ExecuterInjectionBoneMenu();
+                }
             }
+            catch {}
         }
 
         private static void ExecuterInjectionBoneMenu()
         {
-            if (_menuInitialise) return;
-
             try
             {
                 Assembly boneLibAssembly = null;
@@ -54,7 +71,6 @@ namespace FusionDarkRP
                 Type menuManagerType = boneLibAssembly.GetType("BoneLib.BoneMenu.MenuManager");
                 if (menuManagerType == null) return;
 
-                // Récupération dynamique du type de Couleur natif d'Unity
                 Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
                 if (colorType == null) return;
 
@@ -70,7 +86,7 @@ namespace FusionDarkRP
                 MethodInfo createCategoryMethod = menuManagerType.GetMethod("CreateCategory", new Type[] { typeof(string), colorType });
                 if (createCategoryMethod == null) return;
 
-                // Création directe de notre catégorie racine autonome "Fusion DarkRP" dans le panneau de ton BoneMenu
+                // On force la création à la racine du BoneMenu
                 _darkRPCategory = createCategoryMethod.Invoke(null, new object[] { "Fusion DarkRP", couleurJaune });
                 if (_darkRPCategory == null) return;
 
@@ -92,7 +108,7 @@ namespace FusionDarkRP
                 AjouterBoutonJob(factionCat, "Devenir Fabricant", Job.Fabricant, couleurRouge);
                 AjouterBoutonJob(factionCat, "Devenir Garde du Corps", Job.GardeDuCorps, couleurGrise);
 
-                // Section 3 : Commandement d'administration (Réservé à l'Hôte du serveur)
+                // Section 3 : Commandement d'administration (Réservé à l'Hôte)
                 object adminCat = createSubCategoryMethod.Invoke(_darkRPCategory, new object[] { "Menu Admin Hote", couleurRouge });
                 object couleurOr = Activator.CreateInstance(colorType, new object[] { 1.0f, 0.84f, 0.0f, 1.0f });
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Maire", Job.Maire, couleurOr);
@@ -100,8 +116,7 @@ namespace FusionDarkRP
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Parrain", Job.Parrain, couleurRouge);
                 AjouterBoutonAdmin(adminCat, "[HOTE] Assigner Mercenaire", Job.Mercenaire, couleurNoire);
 
-                _menuInitialise = true;
-                MelonLogger.Msg("✅ [BoneMenu Success] Catégorie Fusion DarkRP créée avec succès dans les menus !");
+                MelonLogger.Msg("============== CATEGORIE INJECTEE EN DIRECT SUR LE SERVEUR WITH SUCCESS ==============");
             }
             catch (Exception ex)
             {
@@ -169,19 +184,17 @@ namespace FusionDarkRP
 
                 Type playerSenderType = fusionAssembly.GetType("LabFusion.Network.PlayerSender");
                 MethodInfo sendRequest = playerSenderType?.GetMethod("SendPlayerMetadataRequest", new Type[] { typeof(byte), typeof(string), typeof(string) });
-                
                 sendRequest?.Invoke(null, new object[] { localId, MetadataKey, job.ToString() });
-            }
-            catch {}
-        }
-
-        private static Assembly ObtenirFusionAssembly()
-        {
-            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                if (asm.GetName().Name == "LabFusion") return asm;
-            }
-            return null;
-        }
-    }
+}
+catch {}
+}
+private static Assembly ObtenirFusionAssembly()
+{
+foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+{
+if (asm.GetName().Name == "LabFusion") return asm;
+}
+return null;
+}
+}
 }
