@@ -21,5 +21,8 @@
     <Reference Include="UnityEngine.IMGUIModule">
       <HintPath>Libs/UnityEngine.IMGUIModule.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>Libs/UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>
