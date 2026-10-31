@@ -126,8 +126,6 @@ namespace FusionDarkRP
             if (requestedTeam == null || requestedGrade == null)
                 return false;
 
-            // L'hote peut attribuer les grades, y compris les postes
-            // de chef et de patron.
             if (IsHostPlayer(sender))
                 return IsValidPair(team, grade);
 
@@ -137,8 +135,6 @@ namespace FusionDarkRP
             string targetGrade =
                 target.Metadata.Metadata.GetMetadata(GradeKey);
 
-            // Un joueur peut uniquement redevenir citoyen
-            // ou rejoindre les eboueurs au grade de base.
             if (sender.SmallID == target.SmallID)
             {
                 return (team == 0 && grade == 0) ||
@@ -155,6 +151,21 @@ namespace FusionDarkRP
                 string.IsNullOrEmpty(managerGrade))
                 return false;
 
+            // Un chef peut renvoyer un membre de sa propre equipe en citoyen.
+            // Il ne peut pas renvoyer un chef/patron ni un membre d'une autre equipe.
+            if (team == 0 && grade == 0)
+            {
+                if (targetTeam != managerTeam)
+                    return false;
+
+                int targetRankForDismissal = Rank(targetTeam, targetGrade);
+                int managerRankForDismissal = Rank(managerTeam, managerGrade);
+
+                return targetRankForDismissal >= 0 &&
+                       targetRankForDismissal < managerRankForDismissal &&
+                       !IsTopRankName(targetGrade);
+            }
+
             // Un responsable ne peut gerer que sa propre equipe.
             if (managerTeam != requestedTeam)
                 return false;
@@ -167,20 +178,13 @@ namespace FusionDarkRP
             int requestedRank =
                 Rank(requestedTeam, requestedGrade);
 
-            // IMPORTANT :
-            // Seul le dernier grade de la hierarchie peut gerer
-            // les membres de l'equipe.
             if (hierarchy.Length == 0 ||
                 managerRank != hierarchy.Length - 1)
                 return false;
 
-            // Un chef ou patron ne peut pas nommer un autre chef
-            // ou patron. Cette action est reservee a l'hote.
             if (IsTopRankName(requestedGrade))
                 return false;
 
-            // Le responsable ne peut recruter que des citoyens,
-            // des eboueurs ou des membres de sa propre equipe.
             if (!string.IsNullOrEmpty(targetTeam) &&
                 targetTeam != "Citoyen" &&
                 targetTeam != "Eboueurs" &&
@@ -189,24 +193,10 @@ namespace FusionDarkRP
 
             int oldRank = Rank(targetTeam, targetGrade);
 
-            // Impossible de modifier un membre de rang egal
-            // ou superieur au sien.
             if (targetTeam == requestedTeam &&
                 oldRank >= managerRank)
                 return false;
 
-            // Renvoyer citoyen uniquement un membre de son equipe.
-            // Impossible de renvoyer un chef ou un patron.
-            if (team == 0 && grade == 0)
-            {
-                return targetTeam == requestedTeam &&
-                       oldRank >= 0 &&
-                       oldRank < managerRank &&
-                       !IsTopRankName(targetGrade);
-            }
-
-            // Le responsable peut attribuer uniquement les grades
-            // inferieurs au sien.
             return requestedRank >= 0 &&
                    requestedRank < managerRank;
         }
