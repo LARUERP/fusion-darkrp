@@ -41,38 +41,46 @@ namespace FusionDarkRP
             if (!NetworkInfo.IsHost || !received.Sender.HasValue)
                 return;
 
-            DarkRPRequestData data =
-                received.ReadData<DarkRPRequestData>();
+            try
+            {
+                DarkRPRequestData data =
+                    received.ReadData<DarkRPRequestData>();
 
-            PlayerID sender =
-                PlayerIDManager.GetPlayerID(received.Sender.Value);
+                PlayerID sender =
+                    PlayerIDManager.GetPlayerID(received.Sender.Value);
 
-            PlayerID target =
-                PlayerIDManager.GetPlayerID(data.TargetId);
+                PlayerID target =
+                    PlayerIDManager.GetPlayerID(data.TargetId);
 
-            if (sender == null || target == null ||
-                !sender.IsValid || !target.IsValid)
-                return;
+                if (sender == null || target == null ||
+                    !sender.IsValid || !target.IsValid)
+                    return;
 
-            if (!DarkRPNetwork.CanApply(
-                sender, target, data.Team, data.Grade))
-                return;
+                if (!DarkRPNetwork.CanApply(
+                    sender, target, data.Team, data.Grade))
+                    return;
 
-            string team = DarkRPNetwork.TeamName(data.Team);
-            string grade = DarkRPNetwork.GradeName(data.Grade);
+                string team = DarkRPNetwork.TeamName(data.Team);
+                string grade = DarkRPNetwork.GradeName(data.Grade);
 
-            if (team == null || grade == null)
-                return;
+                if (team == null || grade == null)
+                    return;
 
-            PlayerSender.SendPlayerMetadataResponse(
-                target.SmallID,
-                DarkRPNetwork.TeamKey,
-                team);
+                PlayerSender.SendPlayerMetadataResponse(
+                    target.SmallID,
+                    DarkRPNetwork.TeamKey,
+                    team);
 
-            PlayerSender.SendPlayerMetadataResponse(
-                target.SmallID,
-                DarkRPNetwork.GradeKey,
-                grade);
+                PlayerSender.SendPlayerMetadataResponse(
+                    target.SmallID,
+                    DarkRPNetwork.GradeKey,
+                    grade);
+            }
+            catch (Exception ex)
+            {
+                MelonLoader.MelonLogger.Error(
+                    "[Fusion DarkRP] Erreur traitement demande : " + ex);
+            }
         }
     }
 
@@ -95,7 +103,9 @@ namespace FusionDarkRP
         }
 
         public static void Request(
-            byte targetId, byte team, byte grade)
+            byte targetId,
+            byte team,
+            byte grade)
         {
             if (!NetworkInfo.HasServer)
                 return;
@@ -120,89 +130,119 @@ namespace FusionDarkRP
             byte team,
             byte grade)
         {
+            if (sender == null || target == null)
+                return false;
+
+            if (!sender.IsValid || !target.IsValid)
+                return false;
+
             string requestedTeam = TeamName(team);
             string requestedGrade = GradeName(grade);
 
             if (requestedTeam == null || requestedGrade == null)
                 return false;
 
+            if (!IsValidPair(team, grade))
+                return false;
+
+            // L'hôte peut gérer toutes les équipes et tous les grades.
             if (IsHostPlayer(sender))
-                return IsValidPair(team, grade);
+                return true;
 
-            string targetTeam =
-                target.Metadata.Metadata.GetMetadata(TeamKey);
+            string targetTeam = GetMetadata(target, TeamKey);
+            string targetGrade = GetMetadata(target, GradeKey);
 
-            string targetGrade =
-                target.Metadata.Metadata.GetMetadata(GradeKey);
-
+            // Un joueur ne peut gérer que son propre personnage
+            // pour les métiers publics autorisés.
             if (sender.SmallID == target.SmallID)
             {
                 return (team == 0 && grade == 0) ||
                        (team == 1 && grade == 1);
             }
 
-            string managerTeam =
-                sender.Metadata.Metadata.GetMetadata(TeamKey);
+            // Un chef ne peut jamais se gérer lui-même.
+            if (sender.SmallID == target.SmallID)
+                return false;
 
-            string managerGrade =
-                sender.Metadata.Metadata.GetMetadata(GradeKey);
+            string managerTeam = GetMetadata(sender, TeamKey);
+            string managerGrade = GetMetadata(sender, GradeKey);
 
             if (string.IsNullOrEmpty(managerTeam) ||
                 string.IsNullOrEmpty(managerGrade))
                 return false;
 
-            // Un chef peut renvoyer un membre de sa propre equipe en citoyen.
-            // Il ne peut pas renvoyer un chef/patron ni un membre d'une autre equipe.
+            int managerRank = Rank(managerTeam, managerGrade);
+
+            string[] hierarchy = Ranks(managerTeam);
+
+            // Seul le grade le plus élevé de son équipe
+            // peut recruter et gérer les membres.
+            if (hierarchy.Length == 0 ||
+                managerRank != hierarchy.Length - 1)
+                return false;
+
+            // Le chef ne peut gérer que sa propre équipe.
+            if (managerTeam != requestedTeam &&
+                !(team == 0 && grade == 0))
+                return false;
+
+            // Un chef ne peut jamais attribuer le grade de chef.
+            if (IsTopRankName(requestedGrade))
+                return false;
+
+            // Un chef ne peut pas recruter un autre chef.
+            if (IsTopRankName(targetGrade))
+                return false;
+
+            // Le renvoi en citoyen est réservé aux membres
+            // de sa propre équipe et aux grades inférieurs.
             if (team == 0 && grade == 0)
             {
                 if (targetTeam != managerTeam)
                     return false;
 
-                int targetRankForDismissal = Rank(targetTeam, targetGrade);
-                int managerRankForDismissal = Rank(managerTeam, managerGrade);
+                int targetRank = Rank(targetTeam, targetGrade);
 
-                return targetRankForDismissal >= 0 &&
-                       targetRankForDismissal < managerRankForDismissal &&
-                       !IsTopRankName(targetGrade);
+                return targetRank >= 0 &&
+                       targetRank < managerRank;
             }
 
-            // Un responsable ne peut gerer que sa propre equipe.
-            if (managerTeam != requestedTeam)
-                return false;
+            // Le recrutement doit viser la propre équipe du chef.
+            if (targetTeam == managerTeam)
+            {
+                int oldRank = Rank(targetTeam, targetGrade);
 
-            string[] hierarchy = Ranks(managerTeam);
+                // Interdit de modifier un membre de rang égal
+                // ou supérieur au sien.
+                if (oldRank < 0 || oldRank >= managerRank)
+                    return false;
+            }
 
-            int managerRank =
-                Rank(managerTeam, managerGrade);
+            // Un joueur d'une autre équipe peut être recruté,
+            // sauf s'il est lui-même chef de cette équipe.
+            return Rank(requestedTeam, requestedGrade) >= 0 &&
+                   Rank(requestedTeam, requestedGrade) < managerRank;
+        }
 
-            int requestedRank =
-                Rank(requestedTeam, requestedGrade);
-
-            if (hierarchy.Length == 0 ||
-                managerRank != hierarchy.Length - 1)
-                return false;
-
-            if (IsTopRankName(requestedGrade))
-                return false;
-
-            if (!string.IsNullOrEmpty(targetTeam) &&
-                targetTeam != "Citoyen" &&
-                targetTeam != "Eboueurs" &&
-                targetTeam != requestedTeam)
-                return false;
-
-            int oldRank = Rank(targetTeam, targetGrade);
-
-            if (targetTeam == requestedTeam &&
-                oldRank >= managerRank)
-                return false;
-
-            return requestedRank >= 0 &&
-                   requestedRank < managerRank;
+        private static string GetMetadata(
+            PlayerID player,
+            string key)
+        {
+            try
+            {
+                return player.Metadata.Metadata.GetMetadata(key);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static bool IsHostPlayer(PlayerID player)
         {
+            if (player == null)
+                return false;
+
             try
             {
                 PropertyInfo property =
