@@ -1,44 +1,64 @@
+
 using System;
 using System.Reflection;
 using MelonLoader;
 
-[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.1.0", "LARUERP")]
+[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP Module", "1.2.0", "LARUERP")]
 [assembly: MelonGame("Stress Level Zero", "BONELAB")]
 
 namespace FusionDarkRP
 {
     public class MainMod : MelonMod
     {
-        public enum Job
+        public enum Equipe
         {
-            Citoyen, Maire, PatronPolice, Police, AgentSecurite,
-            Parrain, Gangster, Fabricant, VendeurArmes, GardeDuCorps,
-            Depanneur, Mercenaire, Medecin
+            Citoyen, Eboueurs, Banque, Mairie,
+            Epicerie, Police, Gang, Medecins
         }
 
-        public static Job MonJobActuel = Job.Citoyen;
-        public static string MetadataKey = "DarkRP_Job";
+        public enum Grade
+        {
+            Citoyen,
 
-        private static object _darkRPCategory;
-        private static DateTime _prochaineTentative = DateTime.MinValue;
+            Eboueur, ResponsableCollecte, ChefEboueurs,
+
+            Guichetier, ConseillerBancaire,
+            DirecteurAdjointBanque, DirecteurBanque,
+
+            ConseillerMunicipal, SecretaireMairie,
+            AdjointMaire, Maire,
+
+            Vendeur, ResponsableRayon,
+            GerantAdjoint, GerantEpicerie,
+
+            Policier, Sergent, Lieutenant,
+            CommissaireAdjoint, ChefPolice,
+
+            MembreGang, Associe, LieutenantGang,
+            BrasDroit, Parrain,
+
+            Infirmier, Chirurgien,
+            MedecinAdjoint, MedecinChef
+        }
+
+        public static Equipe MonEquipe = Equipe.Citoyen;
+        public static Grade MonGrade = Grade.Citoyen;
+
         private static bool _menuCree;
+        private static DateTime _prochaineTentative = DateTime.MinValue;
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("[Fusion DarkRP] Mod chargé.");
-            MelonLogger.Msg("[Fusion DarkRP] Attente de BoneLib...");
+            MelonLogger.Msg("[Fusion DarkRP] Prototype 1.2.0 charge.");
+            MelonLogger.Warning("[Fusion DarkRP] Les postes sont actuellement locaux.");
         }
 
         public override void OnUpdate()
         {
-            if (_menuCree)
-                return;
-
-            if (DateTime.UtcNow < _prochaineTentative)
+            if (_menuCree || DateTime.UtcNow < _prochaineTentative)
                 return;
 
             _prochaineTentative = DateTime.UtcNow.AddSeconds(3);
-
             CreerMenuBoneLib();
         }
 
@@ -61,33 +81,20 @@ namespace FusionDarkRP
                     return;
 
                 Type pageType = boneLib.GetType("BoneLib.BoneMenu.Page");
+                Type colorType = Type.GetType(
+                    "UnityEngine.Color, UnityEngine.CoreModule"
+                );
 
-                if (pageType == null)
-                {
-                    MelonLogger.Warning("[Fusion DarkRP] Type Page introuvable.");
+                if (pageType == null || colorType == null)
                     return;
-                }
-
-                Type colorType =
-                    Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
-
-                if (colorType == null)
-                {
-                    MelonLogger.Warning("[Fusion DarkRP] Unity Color introuvable.");
-                    return;
-                }
 
                 PropertyInfo rootProperty = pageType.GetProperty(
                     "Root",
                     BindingFlags.Public | BindingFlags.Static
                 );
 
-                if (rootProperty == null)
-                    return;
+                object root = rootProperty?.GetValue(null);
 
-                object root = rootProperty.GetValue(null);
-
-                // BoneLib n'a pas encore initialisé son menu.
                 if (root == null)
                     return;
 
@@ -103,22 +110,13 @@ namespace FusionDarkRP
                     }
                 }
 
-                if (createPage == null)
-                {
-                    MelonLogger.Warning("[Fusion DarkRP] CreatePage introuvable.");
-                    return;
-                }
-
                 MethodInfo createFunction = pageType.GetMethod(
                     "CreateFunction",
                     new Type[] { typeof(string), colorType, typeof(Action) }
                 );
 
-                if (createFunction == null)
-                {
-                    MelonLogger.Warning("[Fusion DarkRP] CreateFunction introuvable.");
+                if (createPage == null || createFunction == null)
                     return;
-                }
 
                 object blanc = colorType.GetProperty("white").GetValue(null);
                 object jaune = colorType.GetProperty("yellow").GetValue(null);
@@ -128,83 +126,190 @@ namespace FusionDarkRP
                 object cyan = colorType.GetProperty("cyan").GetValue(null);
                 object gris = colorType.GetProperty("gray").GetValue(null);
 
-                // Création de la catégorie principale.
-                _darkRPCategory = CreerPage(
+                object principal = Page(
                     createPage, root, "Fusion DarkRP", jaune
                 );
 
-                if (_darkRPCategory == null)
-                    return;
-
-                // Jobs publics.
-                object publicCat = CreerPage(
-                    createPage, _darkRPCategory, "Jobs Publics", blanc
+                object publics = Page(
+                    createPage, principal, "Jobs publics", blanc
                 );
 
-                AjouterBouton(createFunction, publicCat,
-                    "Devenir Citoyen", Job.Citoyen, blanc);
-
-                AjouterBouton(createFunction, publicCat,
-                    "Devenir Medecin", Job.Medecin, vert);
-
-                AjouterBouton(createFunction, publicCat,
-                    "Devenir Depanneur", Job.Depanneur, jaune);
-
-                AjouterBouton(createFunction, publicCat,
-                    "Devenir Vendeur d'Armes", Job.VendeurArmes, cyan);
-
-                // Factions.
-                object factionCat = CreerPage(
-                    createPage, _darkRPCategory, "Rejoindre Faction", gris
+                object factions = Page(
+                    createPage, principal, "Factions", gris
                 );
 
-                AjouterBouton(createFunction, factionCat,
-                    "Devenir Policier", Job.Police, bleu);
-
-                AjouterBouton(createFunction, factionCat,
-                    "Devenir Agent Securite", Job.AgentSecurite, cyan);
-
-                AjouterBouton(createFunction, factionCat,
-                    "Devenir Gangster", Job.Gangster, rouge);
-
-                AjouterBouton(createFunction, factionCat,
-                    "Devenir Fabricant", Job.Fabricant, rouge);
-
-                AjouterBouton(createFunction, factionCat,
-                    "Devenir Garde du Corps", Job.GardeDuCorps, gris);
-
-                // Menu réservé à l'hôte.
-                object adminCat = CreerPage(
-                    createPage, _darkRPCategory, "Menu Admin Hote", rouge
+                object grades = Page(
+                    createPage, principal, "Grades et postes", blanc
                 );
 
-                AjouterBouton(createFunction, adminCat,
-                    "[HOTE] Assigner Maire", Job.Maire, jaune);
+                object admin = Page(
+                    createPage, principal, "Administration hote", rouge
+                );
 
-                AjouterBouton(createFunction, adminCat,
-                    "[HOTE] Assigner Chef Police", Job.PatronPolice, bleu);
+                // JOBS PUBLICS
+                Add(createFunction, publics, "Citoyen", Equipe.Citoyen,
+                    Grade.Citoyen, blanc);
 
-                AjouterBouton(createFunction, adminCat,
-                    "[HOTE] Assigner Parrain", Job.Parrain, rouge);
+                Add(createFunction, publics, "Eboueurs", Equipe.Eboueurs,
+                    Grade.Eboueur, vert);
 
-                AjouterBouton(createFunction, adminCat,
-                    "[HOTE] Assigner Mercenaire", Job.Mercenaire, gris);
+                Add(createFunction, publics, "Banquier", Equipe.Banque,
+                    Grade.Guichetier, jaune);
+
+                Add(createFunction, publics, "Poste a la mairie",
+                    Equipe.Mairie, Grade.ConseillerMunicipal, cyan);
+
+                Add(createFunction, publics, "Epicier", Equipe.Epicerie,
+                    Grade.Vendeur, vert);
+
+                // FACTIONS
+                Add(createFunction, factions, "Policier", Equipe.Police,
+                    Grade.Policier, bleu);
+
+                Add(createFunction, factions, "Membre du gang", Equipe.Gang,
+                    Grade.MembreGang, rouge);
+
+                Add(createFunction, factions, "Medecin", Equipe.Medecins,
+                    Grade.Infirmier, vert);
+
+                // GRADES MAIRIE
+                object mairie = Page(
+                    createPage, grades, "Mairie", jaune
+                );
+
+                Add(createFunction, mairie, "Conseiller municipal",
+                    Equipe.Mairie, Grade.ConseillerMunicipal, blanc);
+
+                Add(createFunction, mairie, "Secretaire de mairie",
+                    Equipe.Mairie, Grade.SecretaireMairie, blanc);
+
+                Add(createFunction, mairie, "Adjoint au maire",
+                    Equipe.Mairie, Grade.AdjointMaire, cyan);
+
+                // GRADES POLICE
+                object police = Page(
+                    createPage, grades, "Police", bleu
+                );
+
+                Add(createFunction, police, "Policier",
+                    Equipe.Police, Grade.Policier, blanc);
+
+                Add(createFunction, police, "Sergent",
+                    Equipe.Police, Grade.Sergent, cyan);
+
+                Add(createFunction, police, "Lieutenant",
+                    Equipe.Police, Grade.Lieutenant, cyan);
+
+                Add(createFunction, police, "Commissaire adjoint",
+                    Equipe.Police, Grade.CommissaireAdjoint, jaune);
+
+                // GRADES GANG
+                object gang = Page(
+                    createPage, grades, "Gang", rouge
+                );
+
+                Add(createFunction, gang, "Membre du gang",
+                    Equipe.Gang, Grade.MembreGang, blanc);
+
+                Add(createFunction, gang, "Associe",
+                    Equipe.Gang, Grade.Associe, blanc);
+
+                Add(createFunction, gang, "Lieutenant",
+                    Equipe.Gang, Grade.LieutenantGang, cyan);
+
+                Add(createFunction, gang, "Bras droit",
+                    Equipe.Gang, Grade.BrasDroit, jaune);
+
+                // GRADES MEDECINS
+                object medecins = Page(
+                    createPage, grades, "Medecins", vert
+                );
+
+                Add(createFunction, medecins, "Infirmier",
+                    Equipe.Medecins, Grade.Infirmier, blanc);
+
+                Add(createFunction, medecins, "Chirurgien",
+                    Equipe.Medecins, Grade.Chirurgien, cyan);
+
+                Add(createFunction, medecins, "Medecin adjoint",
+                    Equipe.Medecins, Grade.MedecinAdjoint, jaune);
+
+                // GRADES EBOUEURS
+                object eboueurs = Page(
+                    createPage, grades, "Eboueurs", vert
+                );
+
+                Add(createFunction, eboueurs, "Eboueur",
+                    Equipe.Eboueurs, Grade.Eboueur, blanc);
+
+                Add(createFunction, eboueurs, "Responsable de collecte",
+                    Equipe.Eboueurs, Grade.ResponsableCollecte, cyan);
+
+                // GRADES BANQUE
+                object banque = Page(
+                    createPage, grades, "Banque", jaune
+                );
+
+                Add(createFunction, banque, "Guichetier",
+                    Equipe.Banque, Grade.Guichetier, blanc);
+
+                Add(createFunction, banque, "Conseiller bancaire",
+                    Equipe.Banque, Grade.ConseillerBancaire, cyan);
+
+                Add(createFunction, banque, "Directeur adjoint",
+                    Equipe.Banque, Grade.DirecteurAdjointBanque, jaune);
+
+                // GRADES EPICERIE
+                object epicerie = Page(
+                    createPage, grades, "Epicerie", vert
+                );
+
+                Add(createFunction, epicerie, "Vendeur",
+                    Equipe.Epicerie, Grade.Vendeur, blanc);
+
+                Add(createFunction, epicerie, "Responsable de rayon",
+                    Equipe.Epicerie, Grade.ResponsableRayon, cyan);
+
+                Add(createFunction, epicerie, "Gerant adjoint",
+                    Equipe.Epicerie, Grade.GerantAdjoint, jaune);
+
+                // NOMINATIONS RESERVEES A L'HOTE
+                AddHost(createFunction, admin, "Nommer Maire",
+                    Equipe.Mairie, Grade.Maire, jaune);
+
+                AddHost(createFunction, admin, "Nommer Chef de police",
+                    Equipe.Police, Grade.ChefPolice, bleu);
+
+                AddHost(createFunction, admin, "Nommer Parrain",
+                    Equipe.Gang, Grade.Parrain, rouge);
+
+                AddHost(createFunction, admin, "Nommer Medecin-chef",
+                    Equipe.Medecins, Grade.MedecinChef, vert);
+
+                AddHost(createFunction, admin, "Nommer Chef des eboueurs",
+                    Equipe.Eboueurs, Grade.ChefEboueurs, vert);
+
+                AddHost(createFunction, admin, "Nommer Directeur de banque",
+                    Equipe.Banque, Grade.DirecteurBanque, jaune);
+
+                AddHost(createFunction, admin, "Nommer Gerant epicerie",
+                    Equipe.Epicerie, Grade.GerantEpicerie, vert);
 
                 _menuCree = true;
 
                 MelonLogger.Msg(
-                    "[Fusion DarkRP] Menu BoneMenu créé avec succès !"
+                    "[Fusion DarkRP] Menu BoneMenu cree avec succes."
                 );
             }
             catch (Exception ex)
             {
                 MelonLogger.Error(
-                    "[Fusion DarkRP] Erreur création menu : " + ex
+                    "[Fusion DarkRP] Erreur BoneMenu : " + ex
                 );
             }
         }
 
-        private static object CreerPage(
+        private static object Page(
             MethodInfo method,
             object parent,
             string nom,
@@ -217,179 +322,107 @@ namespace FusionDarkRP
             );
         }
 
-        private static void AjouterBouton(
-            MethodInfo createFunction,
+        private static void Add(
+            MethodInfo method,
             object page,
             string label,
-            Job job,
+            Equipe equipe,
+            Grade grade,
             object couleur
         )
         {
             if (page == null)
                 return;
 
-            createFunction.Invoke(
+            method.Invoke(
                 page,
                 new object[]
                 {
                     label,
                     couleur,
-                    (Action)(() => ChangerDeJobLocal(job))
+                    (Action)(() => ChangerPosteLocal(equipe, grade))
                 }
             );
         }
 
-        private static void ChangerDeJobLocal(Job job)
+        private static void AddHost(
+            MethodInfo method,
+            object page,
+            string label,
+            Equipe equipe,
+            Grade grade,
+            object couleur
+        )
         {
-            if (EstUnPosteDeChef(job))
-            {
-                MelonLogger.Warning(
-                    "[Fusion DarkRP] Ce poste est réservé à l'hôte."
-                );
+            if (page == null)
                 return;
-            }
 
-            MonJobActuel = job;
+            method.Invoke(
+                page,
+                new object[]
+                {
+                    label,
+                    couleur,
+                    (Action)(() =>
+                    {
+                        if (!EstHote())
+                        {
+                            MelonLogger.Warning(
+                                "[Fusion DarkRP] Action reservee a l'hote."
+                            );
+                            return;
+                        }
 
-            MelonLogger.Msg("[Fusion DarkRP] Métier choisi : " + job);
-
-            MettreAJourMetadataDynamique(job);
+                        ChangerPosteLocal(equipe, grade);
+                    })
+                }
+            );
         }
 
-        private static bool EstUnPosteDeChef(Job job)
-        {
-            return job == Job.Maire ||
-                   job == Job.PatronPolice ||
-                   job == Job.Parrain ||
-                   job == Job.Mercenaire;
-        }
-
-        private static void AssignerJobDepuisHote(Job job)
+        private static bool EstHote()
         {
             try
             {
-                Assembly fusionAssembly = ObtenirFusionAssembly();
+                Assembly fusion = null;
 
-                if (fusionAssembly == null)
+                foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    MelonLogger.Warning("[Fusion DarkRP] LabFusion introuvable.");
-                    return;
+                    if (asm.GetName().Name == "LabFusion")
+                    {
+                        fusion = asm;
+                        break;
+                    }
                 }
 
-                Type networkInfoType =
-                    fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
+                Type network = fusion?.GetType(
+                    "LabFusion.Network.NetworkInfo"
+                );
 
-                PropertyInfo isServerProp = networkInfoType?.GetProperty(
+                PropertyInfo prop = network?.GetProperty(
                     "IsServer",
                     BindingFlags.Public | BindingFlags.Static
                 );
 
-                bool isServer =
-                    isServerProp != null &&
-                    (bool)isServerProp.GetValue(null);
-
-                if (!isServer)
-                {
-                    MelonLogger.Warning(
-                        "[Fusion DarkRP] Action réservée à l'hôte."
-                    );
-                    return;
-                }
-
-                MonJobActuel = job;
-
-                MelonLogger.Msg(
-                    "[Fusion DarkRP] Métier local de l'hôte : " + job
-                );
-
-                MettreAJourMetadataDynamique(job);
+                return prop != null && (bool)prop.GetValue(null);
             }
-            catch (Exception ex)
+            catch
             {
-                MelonLogger.Error(
-                    "[Fusion DarkRP] Erreur attribution : " + ex
-                );
+                return false;
             }
         }
 
-        private static void MettreAJourMetadataDynamique(Job job)
+        private static void ChangerPosteLocal(
+            Equipe equipe,
+            Grade grade
+        )
         {
-            try
-            {
-                Assembly fusionAssembly = ObtenirFusionAssembly();
+            MonEquipe = equipe;
+            MonGrade = grade;
 
-                if (fusionAssembly == null)
-                    return;
-
-                Type networkInfoType =
-                    fusionAssembly.GetType("LabFusion.Network.NetworkInfo");
-
-                PropertyInfo hasServerProp = networkInfoType?.GetProperty(
-                    "HasServer",
-                    BindingFlags.Public | BindingFlags.Static
-                );
-
-                if (hasServerProp == null ||
-                    !(bool)hasServerProp.GetValue(null))
-                    return;
-
-                Type playerIdManagerType =
-                    fusionAssembly.GetType("LabFusion.Utilities.PlayerIdManager");
-
-                PropertyInfo localSmallIdProp =
-                    playerIdManagerType?.GetProperty(
-                        "LocalSmallId",
-                        BindingFlags.Public | BindingFlags.Static
-                    );
-
-                if (localSmallIdProp == null)
-                    return;
-
-                byte localId = (byte)localSmallIdProp.GetValue(null);
-
-                Type playerSenderType =
-                    fusionAssembly.GetType("LabFusion.Network.PlayerSender");
-
-                MethodInfo sendRequest = playerSenderType?.GetMethod(
-                    "SendPlayerMetadataRequest",
-                    new Type[]
-                    {
-                        typeof(byte),
-                        typeof(string),
-                        typeof(string)
-                    }
-                );
-
-                if (sendRequest == null)
-                {
-                    MelonLogger.Warning(
-                        "[Fusion DarkRP] API metadata Fusion introuvable."
-                    );
-                    return;
-                }
-
-                sendRequest.Invoke(
-                    null,
-                    new object[] { localId, MetadataKey, job.ToString() }
-                );
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Error(
-                    "[Fusion DarkRP] Erreur metadata : " + ex
-                );
-            }
-        }
-
-        private static Assembly ObtenirFusionAssembly()
-        {
-            foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                if (asm.GetName().Name == "LabFusion")
-                    return asm;
-            }
-
-            return null;
+            MelonLogger.Msg(
+                "[Fusion DarkRP] Poste local : " +
+                equipe + " / " + grade
+            );
         }
     }
 }
