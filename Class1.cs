@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -81,15 +82,31 @@ namespace FusionDarkRP
             }
         }
 
+        // CORRECTION : recuperation du joueur local avec PlayerIDManager.LocalID.
         private static object ObtenirJoueurLocal()
         {
-            Assembly fusion = TrouverAssembly("LabFusion");
-            Type localType = fusion?.GetType("LabFusion.Player.LocalPlayer");
+            try
+            {
+                Assembly fusion = TrouverAssembly("LabFusion");
+                Type manager = fusion?.GetType("LabFusion.Player.PlayerIDManager");
 
-            return localType?.GetProperty(
-                "PlayerID",
-                BindingFlags.Public | BindingFlags.Static
-            )?.GetValue(null);
+                if (manager == null)
+                    return null;
+
+                PropertyInfo property = manager.GetProperty(
+                    "LocalID",
+                    BindingFlags.Public | BindingFlags.Static
+                );
+
+                return property?.GetValue(null);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning(
+                    "[Fusion DarkRP] Recuperation joueur local : " + ex.Message
+                );
+                return null;
+            }
         }
 
         private static void CreerMenu()
@@ -804,23 +821,55 @@ namespace FusionDarkRP
             }
         }
 
+        // CORRECTION : essaie Username, puis Nickname, avant le nom de secours.
         private static string PlayerName(object player)
         {
             try
             {
                 object metadata = player.GetType()
-                    .GetProperty("Metadata").GetValue(player);
+                    .GetProperty("Metadata")?.GetValue(player);
 
-                object username = metadata.GetType()
-                    .GetProperty("Username").GetValue(metadata);
+                if (metadata == null)
+                    return "Joueur";
 
-                return username.GetType()
-                    .GetMethod("GetValue")
-                    .Invoke(username, null) as string ?? "Joueur";
+                string username = ReadPlayerNameProperty(metadata, "Username");
+
+                if (!string.IsNullOrWhiteSpace(username))
+                    return username;
+
+                string nickname = ReadPlayerNameProperty(metadata, "Nickname");
+
+                if (!string.IsNullOrWhiteSpace(nickname))
+                    return nickname;
+
+                return "Joueur";
             }
             catch
             {
                 return "Joueur";
+            }
+        }
+
+        private static string ReadPlayerNameProperty(object metadata, string propertyName)
+        {
+            try
+            {
+                object value = metadata.GetType()
+                    .GetProperty(propertyName)?.GetValue(metadata);
+
+                if (value == null)
+                    return null;
+
+                MethodInfo getValue = value.GetType().GetMethod("GetValue");
+
+                if (getValue == null)
+                    return value as string;
+
+                return getValue.Invoke(value, null) as string;
+            }
+            catch
+            {
+                return null;
             }
         }
 
