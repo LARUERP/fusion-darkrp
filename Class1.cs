@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -79,7 +80,6 @@ namespace FusionDarkRP
                 object metadata = local.GetType().GetProperty("Metadata").GetValue(local);
                 object data = metadata.GetType().GetProperty("Metadata").GetValue(metadata);
 
-                // CORRECTION : le nom de la méthode est ReadMetadata.
                 string equipe = ReadMetadata(data, TEAM_KEY);
                 string grade = ReadMetadata(data, GRADE_KEY);
 
@@ -303,15 +303,17 @@ namespace FusionDarkRP
             object white, object yellow, object green, object blue,
             object red, object cyan)
         {
-            AddTargetTeam(cp, cf, parent, target, 1, green);
-            AddTargetTeam(cp, cf, parent, target, 2, yellow);
-            AddTargetTeam(cp, cf, parent, target, 3, cyan);
-            AddTargetTeam(cp, cf, parent, target, 4, green);
-            AddTargetTeam(cp, cf, parent, target, 5, blue);
-            AddTargetTeam(cp, cf, parent, target, 6, green);
-            AddTargetTeam(cp, cf, parent, target, 7, red);
-            AddTargetTeam(cp, cf, parent, target, 8, blue);
-            AddTargetTeam(cp, cf, parent, target, 9, yellow);
+            // L'hote peut attribuer tous les grades, y compris les chefs.
+            AddTargetTeam(cp, cf, parent, target, 1, green, true);
+            AddTargetTeam(cp, cf, parent, target, 2, yellow, true);
+            AddTargetTeam(cp, cf, parent, target, 3, cyan, true);
+            AddTargetTeam(cp, cf, parent, target, 4, green, true);
+            AddTargetTeam(cp, cf, parent, target, 5, blue, true);
+            AddTargetTeam(cp, cf, parent, target, 6, green, true);
+            AddTargetTeam(cp, cf, parent, target, 7, red, true);
+            AddTargetTeam(cp, cf, parent, target, 8, blue, true);
+            AddTargetTeam(cp, cf, parent, target, 9, yellow, true);
+
             AddFunction(cf, parent, "Renvoyer citoyen", white,
                 () => DarkRPNetwork.Request(target, 0, 0));
         }
@@ -332,20 +334,26 @@ namespace FusionDarkRP
             if (team == "Parisiens") color = blue;
             if (team == "GensDuVoyage") color = yellow;
 
-            AddTargetTeam(cp, cf, parent, target, id, color);
+            // Un chef ne peut attribuer que les grades inferieurs.
+            AddTargetTeam(cp, cf, parent, target, id, color, false);
+
             AddFunction(cf, parent, "Renvoyer citoyen", white,
                 () => DarkRPNetwork.Request(target, 0, 0));
         }
 
         private static void AddTargetTeam(
             MethodInfo cp, MethodInfo cf, object parent,
-            byte target, byte team, object color)
+            byte target, byte team, object color, bool includeTopRank)
         {
             object page = NewPage(cp, parent, TeamDisplay(team), color);
             string[] ranks = Ranks(team);
 
             for (int i = 0; i < ranks.Length; i++)
             {
+                // Pour un chef, on masque le grade de chef/patron.
+                if (!includeTopRank && i == ranks.Length - 1)
+                    continue;
+
                 byte grade = GradeId(ranks[i]);
                 string label = DisplayGrade(ranks[i]);
 
@@ -358,8 +366,18 @@ namespace FusionDarkRP
         {
             string team = MyTeam();
             string grade = MyGrade();
-            if (string.IsNullOrEmpty(team) || string.IsNullOrEmpty(grade)) return false;
-            return Rank(team, grade) > 0;
+
+            if (string.IsNullOrEmpty(team) ||
+                string.IsNullOrEmpty(grade))
+                return false;
+
+            string[] ranks = Ranks(TeamId(team));
+
+            if (ranks.Length == 0)
+                return false;
+
+            // Seul le dernier grade de la hierarchie est chef/patron.
+            return grade == ranks[ranks.Length - 1];
         }
 
         private static string MyTeam()
@@ -459,6 +477,7 @@ namespace FusionDarkRP
 
             for (byte i = 0; i < names.Length; i++)
                 if (names[i] == grade) return i;
+
             return 0;
         }
 
@@ -471,6 +490,7 @@ namespace FusionDarkRP
 
             for (byte i = 0; i < names.Length; i++)
                 if (names[i] == team) return i;
+
             return 0;
         }
 
@@ -478,8 +498,10 @@ namespace FusionDarkRP
         {
             byte id = TeamId(team);
             string[] ranks = Ranks(id);
+
             for (int i = 0; i < ranks.Length; i++)
                 if (ranks[i] == grade) return i;
+
             return -1;
         }
 
@@ -490,12 +512,14 @@ namespace FusionDarkRP
                 "Police", "Medecins", "Les Marseillais", "Les Parisiens",
                 "Les Gens du Voyage"
             };
+
             return id < names.Length ? names[id] : "Citoyen";
         }
 
         private static string DisplayGrade(string grade)
         {
             if (string.IsNullOrEmpty(grade)) return "Citoyen";
+
             switch (grade)
             {
                 case "ResponsableCollecte": return "Responsable collecte";
@@ -525,17 +549,23 @@ namespace FusionDarkRP
             {
                 object metadata = player.GetType().GetProperty("Metadata").GetValue(player);
                 object username = metadata.GetType().GetProperty("Username").GetValue(metadata);
+
                 return username.GetType().GetMethod("GetValue").Invoke(username, null) as string
                     ?? "Joueur";
             }
-            catch { return "Joueur"; }
+            catch
+            {
+                return "Joueur";
+            }
         }
 
         private static string ReadMetadata(object metadata, string key)
         {
             if (metadata == null) return null;
+
             MethodInfo method = metadata.GetType().GetMethod(
                 "GetMetadata", new[] { typeof(string) });
+
             return method?.Invoke(metadata, new object[] { key }) as string;
         }
 
@@ -546,7 +576,10 @@ namespace FusionDarkRP
                 object value = obj.GetType().GetProperty(name)?.GetValue(obj);
                 return value is bool && (bool)value;
             }
-            catch { return false; }
+            catch
+            {
+                return false;
+            }
         }
 
         private static bool IsHost()
@@ -555,16 +588,21 @@ namespace FusionDarkRP
             {
                 Assembly fusion = TrouverAssembly("LabFusion");
                 Type type = fusion?.GetType("LabFusion.Network.NetworkInfo");
+
                 return (bool)type?.GetProperty("IsHost",
                     BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
             }
-            catch { return false; }
+            catch
+            {
+                return false;
+            }
         }
 
         private static Assembly TrouverAssembly(string name)
         {
             foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
                 if (a.GetName().Name == name) return a;
+
             return null;
         }
     }
