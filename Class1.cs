@@ -54,7 +54,8 @@ namespace FusionDarkRP
             try
             {
                 object local = ObtenirJoueurLocal();
-                if (local == null) return;
+                if (local == null)
+                    return;
 
                 byte id = Convert.ToByte(
                     local.GetType().GetProperty("SmallID").GetValue(local)
@@ -66,10 +67,14 @@ namespace FusionDarkRP
                 string equipe = ReadMetadata(data, TEAM_KEY);
                 string grade = ReadMetadata(data, GRADE_KEY);
 
-                if (string.IsNullOrEmpty(equipe) || string.IsNullOrEmpty(grade))
-                    DarkRPNetwork.Request(id, 0, 0);
+                if (!string.IsNullOrEmpty(equipe) && !string.IsNullOrEmpty(grade))
+                {
+                    demandeInitialeEnvoyee = true;
+                    return;
+                }
 
-                demandeInitialeEnvoyee = true;
+                // Reessayer jusqu'a ce que les metadonnees soient presentes.
+                DarkRPNetwork.Request(id, 0, 0);
             }
             catch (Exception ex)
             {
@@ -96,14 +101,16 @@ namespace FusionDarkRP
                 Type pageType = bone?.GetType("BoneLib.BoneMenu.Page");
                 Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
 
-                if (pageType == null || colorType == null) return;
+                if (pageType == null || colorType == null)
+                    return;
 
                 object root = pageType.GetProperty(
                     "Root",
                     BindingFlags.Public | BindingFlags.Static
                 )?.GetValue(null);
 
-                if (root == null) return;
+                if (root == null)
+                    return;
 
                 MethodInfo createPage = null;
 
@@ -121,7 +128,8 @@ namespace FusionDarkRP
                     new[] { typeof(string), colorType, typeof(Action) }
                 );
 
-                if (createPage == null || createFunction == null) return;
+                if (createPage == null || createFunction == null)
+                    return;
 
                 object white = ColorValue(colorType, "white");
                 object yellow = ColorValue(colorType, "yellow");
@@ -172,7 +180,7 @@ namespace FusionDarkRP
                 AddFunction(createFunction, character, "Afficher mon statut", white,
                     ShowStatus);
 
-                AddFunction(createFunction, character, "Redevenir citoyen", green,
+                AddFunction(createFunction, character, "Demissionner", green,
                     () => RequestSelf(0, 0));
 
                 menuCree = true;
@@ -266,6 +274,8 @@ namespace FusionDarkRP
                     return;
                 }
 
+                HashSet<byte> joueursPresents = new HashSet<byte>();
+
                 foreach (object player in list)
                 {
                     if (player == null || !ReadBool(player, "IsValid"))
@@ -274,6 +284,8 @@ namespace FusionDarkRP
                     byte id = Convert.ToByte(
                         player.GetType().GetProperty("SmallID").GetValue(player)
                     );
+
+                    joueursPresents.Add(id);
 
                     if (pagesJoueurs.Contains(id))
                         continue;
@@ -300,9 +312,9 @@ namespace FusionDarkRP
                         AddFunction(
                             createFunction,
                             personalPage,
-                            "Redevenir citoyen",
+                            "Demissionner",
                             white,
-                            () => DarkRPNetwork.Request(id, 0, 0)
+                            () => RequestSelf(0, 0)
                         );
 
                         AddFunction(
@@ -310,7 +322,7 @@ namespace FusionDarkRP
                             personalPage,
                             "Rejoindre les eboueurs",
                             green,
-                            () => DarkRPNetwork.Request(id, 1, 1)
+                            () => RequestSelf(1, 1)
                         );
                     }
 
@@ -335,6 +347,10 @@ namespace FusionDarkRP
 
                     pagesJoueurs.Add(id);
                 }
+
+                // Nettoyer les anciens joueurs deconnectes.
+                pagesJoueurs.RemoveWhere(id => !joueursPresents.Contains(id));
+                pagesGestionOuvertes.RemoveWhere(id => !joueursPresents.Contains(id));
 
                 MelonLogger.Msg("[Fusion DarkRP] Liste des joueurs actualisee.");
             }
