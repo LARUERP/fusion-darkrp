@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -177,7 +176,7 @@ namespace FusionDarkRP
                         white, yellow, green, blue, red, cyan
                     ));
 
-                AddFunction(createFunction, character, "Afficher mon statut", white,
+                AddFunction(createFunction, character, "Consulter mon metier et mon grade", white,
                     ShowStatus);
 
                 AddFunction(createFunction, character, "Demissionner", green,
@@ -258,7 +257,6 @@ namespace FusionDarkRP
         {
             try
             {
-                // Supprimer les anciennes pages avant de reconstruire la liste.
                 MethodInfo removePage = parent.GetType().GetMethod(
                     "RemovePage",
                     new[] { parent.GetType() }
@@ -641,45 +639,15 @@ namespace FusionDarkRP
 
         private static void ShowStatus()
         {
+            string team = MyTeam();
+            string grade = MyGrade();
+
             MelonLogger.Msg(
-                "[Fusion DarkRP] " +
-                TeamDisplay(TeamId(MyTeam())) +
-                " - " +
-                DisplayGrade(MyGrade())
+                "[Fusion DarkRP] METIER : " +
+                TeamDisplay(TeamId(team)) +
+                " | GRADE : " +
+                DisplayGrade(grade)
             );
-        }
-
-        public override void OnGUI()
-        {
-            try
-            {
-                string team = MyTeam();
-                string grade = MyGrade();
-
-                if (string.IsNullOrEmpty(team))
-                    team = "Citoyen";
-
-                if (string.IsNullOrEmpty(grade))
-                    grade = "Citoyen";
-
-                GUI.Box(
-                    new Rect(12, Screen.height - 72, 310, 56),
-                    ""
-                );
-
-                GUI.Label(
-                    new Rect(22, Screen.height - 64, 290, 22),
-                    "METIER : " + TeamDisplay(TeamId(team))
-                );
-
-                GUI.Label(
-                    new Rect(22, Screen.height - 40, 290, 22),
-                    "GRADE : " + DisplayGrade(grade)
-                );
-            }
-            catch
-            {
-            }
         }
 
         private static void AddInfo(
