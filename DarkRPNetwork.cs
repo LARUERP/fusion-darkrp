@@ -130,103 +130,88 @@ namespace FusionDarkRP
             byte team,
             byte grade)
         {
-            if (sender == null || target == null)
-                return false;
-
-            if (!sender.IsValid || !target.IsValid)
+            if (sender == null || target == null ||
+                !sender.IsValid || !target.IsValid)
                 return false;
 
             string requestedTeam = TeamName(team);
             string requestedGrade = GradeName(grade);
 
-            if (requestedTeam == null || requestedGrade == null)
+            if (requestedTeam == null || requestedGrade == null ||
+                Rank(requestedTeam, requestedGrade) < 0)
                 return false;
 
-            if (!IsValidPair(team, grade))
-                return false;
-
-            // L'hôte peut gérer toutes les équipes et tous les grades.
+            // L'hôte possède tous les droits.
             if (IsHostPlayer(sender))
                 return true;
 
-            string targetTeam = GetMetadata(target, TeamKey);
-            string targetGrade = GetMetadata(target, GradeKey);
-
-            // Un joueur ne peut gérer que son propre personnage
-            // pour les métiers publics autorisés.
+            // Un joueur peut uniquement choisir les métiers publics
+            // autorisés pour lui-même.
             if (sender.SmallID == target.SmallID)
             {
                 return (team == 0 && grade == 0) ||
                        (team == 1 && grade == 1);
             }
 
-            // Un chef ne peut jamais se gérer lui-même.
-            if (sender.SmallID == target.SmallID)
-                return false;
-
             string managerTeam = GetMetadata(sender, TeamKey);
             string managerGrade = GetMetadata(sender, GradeKey);
+
+            string targetTeam = GetMetadata(target, TeamKey);
+            string targetGrade = GetMetadata(target, GradeKey);
 
             if (string.IsNullOrEmpty(managerTeam) ||
                 string.IsNullOrEmpty(managerGrade))
                 return false;
 
+            string[] managerRanks = Ranks(managerTeam);
             int managerRank = Rank(managerTeam, managerGrade);
 
-            string[] hierarchy = Ranks(managerTeam);
-
-            // Seul le grade le plus élevé de son équipe
-            // peut recruter et gérer les membres.
-            if (hierarchy.Length == 0 ||
-                managerRank != hierarchy.Length - 1)
+            // Seul le grade le plus élevé de l'équipe peut recruter.
+            if (managerRanks.Length == 0 ||
+                managerRank != managerRanks.Length - 1)
                 return false;
 
-            // Le chef ne peut gérer que sa propre équipe.
-            if (managerTeam != requestedTeam &&
-                !(team == 0 && grade == 0))
-                return false;
-
-            // Un chef ne peut jamais attribuer le grade de chef.
-            if (IsTopRankName(requestedGrade))
-                return false;
-
-            // Un chef ne peut pas recruter un autre chef.
-            if (IsTopRankName(targetGrade))
-                return false;
-
-            // Le renvoi en citoyen est réservé aux membres
-            // de sa propre équipe et aux grades inférieurs.
+            // Le chef ne peut attribuer que des grades de son équipe.
             if (team == 0 && grade == 0)
             {
                 if (targetTeam != managerTeam)
                     return false;
 
-                int targetRank = Rank(targetTeam, targetGrade);
+                int oldRank = Rank(targetTeam, targetGrade);
 
-                return targetRank >= 0 &&
-                       targetRank < managerRank;
+                return oldRank >= 0 && oldRank < managerRank;
             }
 
-            // Le recrutement doit viser la propre équipe du chef.
+            if (requestedTeam != managerTeam)
+                return false;
+
+            // Interdit de promouvoir quelqu'un au rang de chef.
+            if (requestedGrade == managerRanks[managerRanks.Length - 1])
+                return false;
+
+            // Interdit de modifier un chef déjà en poste.
+            string[] targetRanks = Ranks(targetTeam);
+
+            if (targetRanks.Length > 0 &&
+                targetGrade == targetRanks[targetRanks.Length - 1])
+                return false;
+
+            // Si le joueur est déjà dans l'équipe, il doit être
+            // d'un rang inférieur à celui du chef.
             if (targetTeam == managerTeam)
             {
                 int oldRank = Rank(targetTeam, targetGrade);
 
-                // Interdit de modifier un membre de rang égal
-                // ou supérieur au sien.
                 if (oldRank < 0 || oldRank >= managerRank)
                     return false;
             }
 
-            // Un joueur d'une autre équipe peut être recruté,
-            // sauf s'il est lui-même chef de cette équipe.
-            return Rank(requestedTeam, requestedGrade) >= 0 &&
-                   Rank(requestedTeam, requestedGrade) < managerRank;
+            int newRank = Rank(requestedTeam, requestedGrade);
+
+            return newRank >= 0 && newRank < managerRank;
         }
 
-        private static string GetMetadata(
-            PlayerID player,
-            string key)
+        private static string GetMetadata(PlayerID player, string key)
         {
             try
             {
@@ -259,27 +244,6 @@ namespace FusionDarkRP
             }
 
             return false;
-        }
-
-        private static bool IsValidPair(byte team, byte grade)
-        {
-            string teamName = TeamName(team);
-            string gradeName = GradeName(grade);
-
-            return teamName != null &&
-                   gradeName != null &&
-                   Rank(teamName, gradeName) >= 0;
-        }
-
-        private static bool IsTopRankName(string grade)
-        {
-            return grade == "Maire" ||
-                   grade == "ChefPolice" ||
-                   grade == "MedecinChef" ||
-                   grade == "ChefEboueurs" ||
-                   grade == "DirecteurBanque" ||
-                   grade == "GerantEpicerie" ||
-                   grade == "Patron";
         }
 
         private static string[] Ranks(string team)
