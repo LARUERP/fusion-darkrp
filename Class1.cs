@@ -6,7 +6,7 @@ using System.Reflection;
 using MelonLoader;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP", "2.0.0", "LARUERP")]
+[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP", "2.0.1", "LARUERP")]
 [assembly: MelonGame("Stress Level Zero", "BONELAB")]
 
 namespace FusionDarkRP
@@ -16,28 +16,12 @@ namespace FusionDarkRP
         private const string TEAM_KEY = "FusionDarkRP.Team";
         private const string GRADE_KEY = "FusionDarkRP.Grade";
 
-        public enum Equipe
-        {
-            Citoyen, Eboueurs, Banque, Mairie, Epicerie,
-            Police, Medecins, Marseillais, Parisiens, GensDuVoyage
-        }
-
-        public enum Grade
-        {
-            Citoyen,
-            Eboueur, ResponsableCollecte, ChefEboueurs,
-            Guichetier, ConseillerBancaire, DirecteurAdjointBanque, DirecteurBanque,
-            ConseillerMunicipal, SecretaireMairie, AdjointMaire, Maire,
-            Vendeur, ResponsableRayon, GerantAdjoint, GerantEpicerie,
-            Policier, Sergent, LieutenantPolice, CommissaireAdjoint, ChefPolice,
-            Infirmier, Chirurgien, MedecinAdjoint, MedecinChef,
-            Membre, Associe, LieutenantGang, BrasDroit, Patron
-        }
-
         private static bool menuCree;
         private static bool demandeInitialeEnvoyee;
         private static DateTime prochaineTentative;
+
         private static readonly HashSet<byte> pagesJoueurs = new HashSet<byte>();
+        private static readonly HashSet<byte> pagesGestionOuvertes = new HashSet<byte>();
 
         public override void OnInitializeMelon()
         {
@@ -98,8 +82,11 @@ namespace FusionDarkRP
         {
             Assembly fusion = TrouverAssembly("LabFusion");
             Type localType = fusion?.GetType("LabFusion.Player.LocalPlayer");
-            return localType?.GetProperty("PlayerID",
-                BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+
+            return localType?.GetProperty(
+                "PlayerID",
+                BindingFlags.Public | BindingFlags.Static
+            )?.GetValue(null);
         }
 
         private static void CreerMenu()
@@ -112,12 +99,15 @@ namespace FusionDarkRP
 
                 if (pageType == null || colorType == null) return;
 
-                object root = pageType.GetProperty("Root",
-                    BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                object root = pageType.GetProperty(
+                    "Root",
+                    BindingFlags.Public | BindingFlags.Static
+                )?.GetValue(null);
 
                 if (root == null) return;
 
                 MethodInfo createPage = null;
+
                 foreach (MethodInfo m in pageType.GetMethods())
                 {
                     if (m.Name == "CreatePage" && m.GetParameters().Length == 4)
@@ -175,8 +165,10 @@ namespace FusionDarkRP
                 AddHierarchy(createPage, createFunction, hierarchy, "Gens du Voyage", 9, yellow, white);
 
                 AddFunction(createFunction, players, "Actualiser les joueurs", cyan,
-                    () => RefreshPlayers(createPage, createFunction, players,
-                        white, yellow, green, blue, red, cyan));
+                    () => RefreshPlayers(
+                        createPage, createFunction, players,
+                        white, yellow, green, blue, red, cyan
+                    ));
 
                 AddFunction(createFunction, character, "Afficher mon statut", white,
                     ShowStatus);
@@ -198,15 +190,18 @@ namespace FusionDarkRP
             try
             {
                 object local = ObtenirJoueurLocal();
+
                 if (local == null)
                 {
                     MelonLogger.Warning("[Fusion DarkRP] Joueur local introuvable.");
                     return;
                 }
 
-                byte id = Convert.ToByte(local.GetType().GetProperty("SmallID").GetValue(local));
-                DarkRPNetwork.Request(id, team, grade);
+                byte id = Convert.ToByte(
+                    local.GetType().GetProperty("SmallID").GetValue(local)
+                );
 
+                DarkRPNetwork.Request(id, team, grade);
                 MelonLogger.Msg("[Fusion DarkRP] Demande envoyee au serveur.");
             }
             catch (Exception ex)
@@ -216,33 +211,56 @@ namespace FusionDarkRP
         }
 
         private static void AddHierarchy(
-            MethodInfo createPage, MethodInfo createFunction,
-            object parent, string name, byte team, object color, object white)
+            MethodInfo createPage,
+            MethodInfo createFunction,
+            object parent,
+            string name,
+            byte team,
+            object color,
+            object white)
         {
             object page = NewPage(createPage, parent, name, color);
-
             string[] ranks = Ranks(team);
+
             for (int i = 0; i < ranks.Length; i++)
             {
                 string gradeName = ranks[i];
-                AddFunction(createFunction, page, DisplayGrade(gradeName), white,
-                    () => MelonLogger.Msg("[Fusion DarkRP] Grade : " + DisplayGrade(gradeName)));
+
+                AddFunction(
+                    createFunction,
+                    page,
+                    DisplayGrade(gradeName),
+                    white,
+                    () => MelonLogger.Msg(
+                        "[Fusion DarkRP] Grade : " + DisplayGrade(gradeName)
+                    )
+                );
             }
         }
 
         private static void RefreshPlayers(
-            MethodInfo createPage, MethodInfo createFunction,
-            object parent, object white, object yellow, object green,
-            object blue, object red, object cyan)
+            MethodInfo createPage,
+            MethodInfo createFunction,
+            object parent,
+            object white,
+            object yellow,
+            object green,
+            object blue,
+            object red,
+            object cyan)
         {
             try
             {
                 Assembly fusion = TrouverAssembly("LabFusion");
                 Type manager = fusion?.GetType("LabFusion.Player.PlayerIDManager");
-                FieldInfo field = manager?.GetField("PlayerIDs",
-                    BindingFlags.Public | BindingFlags.Static);
+
+                FieldInfo field = manager?.GetField(
+                    "PlayerIDs",
+                    BindingFlags.Public | BindingFlags.Static
+                );
 
                 IEnumerable list = field?.GetValue(null) as IEnumerable;
+
                 if (list == null)
                 {
                     MelonLogger.Warning("[Fusion DarkRP] Liste des joueurs introuvable.");
@@ -251,41 +269,72 @@ namespace FusionDarkRP
 
                 foreach (object player in list)
                 {
-                    if (player == null || !ReadBool(player, "IsValid")) continue;
+                    if (player == null || !ReadBool(player, "IsValid"))
+                        continue;
 
-                    byte id = Convert.ToByte(player.GetType()
-                        .GetProperty("SmallID").GetValue(player));
+                    byte id = Convert.ToByte(
+                        player.GetType().GetProperty("SmallID").GetValue(player)
+                    );
 
-                    if (pagesJoueurs.Contains(id)) continue;
+                    if (pagesJoueurs.Contains(id))
+                        continue;
 
                     bool isMe = ReadBool(player, "IsMe");
                     string name = PlayerName(player);
 
                     object playerPage = NewPage(
-                        createPage, parent, name + " [ID " + id + "]", cyan);
-
-                    object teamPage = NewPage(
-                        createPage, playerPage, "Gestion des metiers", white);
+                        createPage,
+                        parent,
+                        name + " [ID " + id + "]",
+                        cyan
+                    );
 
                     if (isMe)
                     {
-                        AddFunction(createFunction, teamPage, "Redevenir citoyen", white,
-                            () => DarkRPNetwork.Request(id, 0, 0));
+                        object personalPage = NewPage(
+                            createPage,
+                            playerPage,
+                            "Mon metier",
+                            white
+                        );
 
-                        AddFunction(createFunction, teamPage, "Rejoindre les eboueurs", green,
-                            () => DarkRPNetwork.Request(id, 1, 1));
+                        AddFunction(
+                            createFunction,
+                            personalPage,
+                            "Redevenir citoyen",
+                            white,
+                            () => DarkRPNetwork.Request(id, 0, 0)
+                        );
+
+                        AddFunction(
+                            createFunction,
+                            personalPage,
+                            "Rejoindre les eboueurs",
+                            green,
+                            () => DarkRPNetwork.Request(id, 1, 1)
+                        );
                     }
 
-                    if (IsHost())
-                    {
-                        AddAllTeams(createPage, createFunction, teamPage,
-                            id, white, yellow, green, blue, red, cyan);
-                    }
-                    else if (CanManageOwnTeam())
-                    {
-                        AddManagedTeam(createPage, createFunction, teamPage,
-                            id, white, yellow, green, blue, red, cyan);
-                    }
+                    // Le bouton existe sur chaque fiche.
+                    // Les droits sont controles au moment du clic.
+                    AddFunction(
+                        createFunction,
+                        playerPage,
+                        "Ouvrir gestion / recrutement",
+                        yellow,
+                        () => OpenPlayerManagement(
+                            createPage,
+                            createFunction,
+                            playerPage,
+                            id,
+                            white,
+                            yellow,
+                            green,
+                            blue,
+                            red,
+                            cyan
+                        )
+                    );
 
                     pagesJoueurs.Add(id);
                 }
@@ -298,12 +347,117 @@ namespace FusionDarkRP
             }
         }
 
-        private static void AddAllTeams(
-            MethodInfo cp, MethodInfo cf, object parent, byte target,
-            object white, object yellow, object green, object blue,
-            object red, object cyan)
+        private static void OpenPlayerManagement(
+            MethodInfo createPage,
+            MethodInfo createFunction,
+            object playerPage,
+            byte target,
+            object white,
+            object yellow,
+            object green,
+            object blue,
+            object red,
+            object cyan)
         {
-            // L'hote peut attribuer tous les grades, y compris les chefs.
+            try
+            {
+                bool host = IsHost();
+                bool manager = CanManageOwnTeam();
+
+                if (!host && !manager)
+                {
+                    MelonLogger.Warning(
+                        "[Fusion DarkRP] Acces refuse : seuls l'hote et les chefs peuvent recruter."
+                    );
+                    return;
+                }
+
+                if (pagesGestionOuvertes.Contains(target))
+                {
+                    MelonLogger.Msg(
+                        "[Fusion DarkRP] La page de gestion de ce joueur existe deja."
+                    );
+                    return;
+                }
+
+                object managementPage = NewPage(
+                    createPage,
+                    playerPage,
+                    "Recrutement / gestion",
+                    yellow
+                );
+
+                if (host)
+                {
+                    AddAllTeams(
+                        createPage,
+                        createFunction,
+                        managementPage,
+                        target,
+                        white,
+                        yellow,
+                        green,
+                        blue,
+                        red,
+                        cyan
+                    );
+
+                    AddInfo(
+                        createFunction,
+                        managementPage,
+                        "Droits hote : toutes les equipes et tous les grades",
+                        yellow
+                    );
+                }
+                else
+                {
+                    AddManagedTeam(
+                        createPage,
+                        createFunction,
+                        managementPage,
+                        target,
+                        white,
+                        yellow,
+                        green,
+                        blue,
+                        red,
+                        cyan
+                    );
+
+                    AddInfo(
+                        createFunction,
+                        managementPage,
+                        "Tu peux gerer uniquement ta propre equipe",
+                        yellow
+                    );
+                }
+
+                pagesGestionOuvertes.Add(target);
+
+                MelonLogger.Msg(
+                    "[Fusion DarkRP] Page de gestion ouverte pour ID " + target
+                );
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error(
+                    "[Fusion DarkRP] Ouverture gestion : " + ex
+                );
+            }
+        }
+
+        private static void AddAllTeams(
+            MethodInfo cp,
+            MethodInfo cf,
+            object parent,
+            byte target,
+            object white,
+            object yellow,
+            object green,
+            object blue,
+            object red,
+            object cyan)
+        {
             AddTargetTeam(cp, cf, parent, target, 1, green, true);
             AddTargetTeam(cp, cf, parent, target, 2, yellow, true);
             AddTargetTeam(cp, cf, parent, target, 3, cyan, true);
@@ -314,51 +468,94 @@ namespace FusionDarkRP
             AddTargetTeam(cp, cf, parent, target, 8, blue, true);
             AddTargetTeam(cp, cf, parent, target, 9, yellow, true);
 
-            AddFunction(cf, parent, "Renvoyer citoyen", white,
-                () => DarkRPNetwork.Request(target, 0, 0));
+            AddFunction(
+                cf,
+                parent,
+                "Renvoyer citoyen",
+                white,
+                () => DarkRPNetwork.Request(target, 0, 0)
+            );
         }
 
         private static void AddManagedTeam(
-            MethodInfo cp, MethodInfo cf, object parent, byte target,
-            object white, object yellow, object green, object blue,
-            object red, object cyan)
+            MethodInfo cp,
+            MethodInfo cf,
+            object parent,
+            byte target,
+            object white,
+            object yellow,
+            object green,
+            object blue,
+            object red,
+            object cyan)
         {
             string team = MyTeam();
             byte id = TeamId(team);
-            if (id == 0) return;
+
+            if (id == 0)
+                return;
 
             object color = green;
-            if (team == "Banque" || team == "Mairie") color = yellow;
-            if (team == "Police") color = blue;
-            if (team == "Marseillais") color = red;
-            if (team == "Parisiens") color = blue;
-            if (team == "GensDuVoyage") color = yellow;
 
-            // Un chef ne peut attribuer que les grades inferieurs.
+            if (team == "Banque" || team == "Mairie")
+                color = yellow;
+
+            if (team == "Police")
+                color = blue;
+
+            if (team == "Marseillais")
+                color = red;
+
+            if (team == "Parisiens")
+                color = blue;
+
+            if (team == "GensDuVoyage")
+                color = yellow;
+
             AddTargetTeam(cp, cf, parent, target, id, color, false);
 
-            AddFunction(cf, parent, "Renvoyer citoyen", white,
-                () => DarkRPNetwork.Request(target, 0, 0));
+            AddFunction(
+                cf,
+                parent,
+                "Renvoyer citoyen",
+                white,
+                () => DarkRPNetwork.Request(target, 0, 0)
+            );
         }
 
         private static void AddTargetTeam(
-            MethodInfo cp, MethodInfo cf, object parent,
-            byte target, byte team, object color, bool includeTopRank)
+            MethodInfo cp,
+            MethodInfo cf,
+            object parent,
+            byte target,
+            byte team,
+            object color,
+            bool includeTopRank)
         {
-            object page = NewPage(cp, parent, TeamDisplay(team), color);
+            object page = NewPage(
+                cp,
+                parent,
+                TeamDisplay(team),
+                color
+            );
+
             string[] ranks = Ranks(team);
 
             for (int i = 0; i < ranks.Length; i++)
             {
-                // Pour un chef, on masque le grade de chef/patron.
                 if (!includeTopRank && i == ranks.Length - 1)
                     continue;
 
                 byte grade = GradeId(ranks[i]);
                 string label = DisplayGrade(ranks[i]);
 
-                AddFunction(cf, page, label, color,
-                    () => DarkRPNetwork.Request(target, team, grade));
+                AddFunction(
+                    cf,
+                    page,
+                    label,
+                    color,
+                    () => DarkRPNetwork.Request(target, team, grade)
+                );
             }
         }
 
@@ -376,30 +573,43 @@ namespace FusionDarkRP
             if (ranks.Length == 0)
                 return false;
 
-            // Seul le dernier grade de la hierarchie est chef/patron.
             return grade == ranks[ranks.Length - 1];
         }
 
         private static string MyTeam()
         {
             object local = ObtenirJoueurLocal();
-            object metadata = local?.GetType().GetProperty("Metadata")?.GetValue(local);
-            object data = metadata?.GetType().GetProperty("Metadata")?.GetValue(metadata);
+
+            object metadata = local?.GetType()
+                .GetProperty("Metadata")?.GetValue(local);
+
+            object data = metadata?.GetType()
+                .GetProperty("Metadata")?.GetValue(metadata);
+
             return ReadMetadata(data, TEAM_KEY);
         }
 
         private static string MyGrade()
         {
             object local = ObtenirJoueurLocal();
-            object metadata = local?.GetType().GetProperty("Metadata")?.GetValue(local);
-            object data = metadata?.GetType().GetProperty("Metadata")?.GetValue(metadata);
+
+            object metadata = local?.GetType()
+                .GetProperty("Metadata")?.GetValue(local);
+
+            object data = metadata?.GetType()
+                .GetProperty("Metadata")?.GetValue(metadata);
+
             return ReadMetadata(data, GRADE_KEY);
         }
 
         private static void ShowStatus()
         {
-            MelonLogger.Msg("[Fusion DarkRP] " + TeamDisplay(TeamId(MyTeam())) +
-                " - " + DisplayGrade(MyGrade()));
+            MelonLogger.Msg(
+                "[Fusion DarkRP] " +
+                TeamDisplay(TeamId(MyTeam())) +
+                " - " +
+                DisplayGrade(MyGrade())
+            );
         }
 
         public override void OnGUI()
@@ -409,57 +619,107 @@ namespace FusionDarkRP
                 string team = MyTeam();
                 string grade = MyGrade();
 
-                if (string.IsNullOrEmpty(team)) team = "Citoyen";
-                if (string.IsNullOrEmpty(grade)) grade = "Citoyen";
+                if (string.IsNullOrEmpty(team))
+                    team = "Citoyen";
 
-                GUI.Box(new Rect(12, Screen.height - 72, 310, 56), "");
-                GUI.Label(new Rect(22, Screen.height - 64, 290, 22),
-                    "METIER : " + TeamDisplay(TeamId(team)));
-                GUI.Label(new Rect(22, Screen.height - 40, 290, 22),
-                    "GRADE : " + DisplayGrade(grade));
+                if (string.IsNullOrEmpty(grade))
+                    grade = "Citoyen";
+
+                GUI.Box(
+                    new Rect(12, Screen.height - 72, 310, 56),
+                    ""
+                );
+
+                GUI.Label(
+                    new Rect(22, Screen.height - 64, 290, 22),
+                    "METIER : " + TeamDisplay(TeamId(team))
+                );
+
+                GUI.Label(
+                    new Rect(22, Screen.height - 40, 290, 22),
+                    "GRADE : " + DisplayGrade(grade)
+                );
             }
-            catch { }
+            catch
+            {
+            }
         }
 
-        private static void AddInfo(MethodInfo method, object page, string label, object color)
+        private static void AddInfo(
+            MethodInfo method,
+            object page,
+            string label,
+            object color)
         {
-            AddFunction(method, page, label, color,
-                () => MelonLogger.Msg("[Fusion DarkRP] " + label));
+            AddFunction(
+                method,
+                page,
+                label,
+                color,
+                () => MelonLogger.Msg("[Fusion DarkRP] " + label)
+            );
         }
 
         private static void AddFunction(
-            MethodInfo method, object page, string label, object color, Action action)
+            MethodInfo method,
+            object page,
+            string label,
+            object color,
+            Action action)
         {
             if (page != null)
                 method.Invoke(page, new object[] { label, color, action });
         }
 
         private static object NewPage(
-            MethodInfo method, object parent, string name, object color)
+            MethodInfo method,
+            object parent,
+            string name,
+            object color)
         {
-            return method.Invoke(parent, new object[] { name, color, 0, true });
+            return method.Invoke(
+                parent,
+                new object[] { name, color, 0, true }
+            );
         }
 
         private static object ColorValue(Type type, string name)
         {
-            return type.GetProperty(name,
-                BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+            return type.GetProperty(
+                name,
+                BindingFlags.Public | BindingFlags.Static
+            )?.GetValue(null);
         }
 
         private static string[] Ranks(byte team)
         {
             switch (team)
             {
-                case 1: return new[] { "Eboueur", "ResponsableCollecte", "ChefEboueurs" };
-                case 2: return new[] { "Guichetier", "ConseillerBancaire", "DirecteurAdjointBanque", "DirecteurBanque" };
-                case 3: return new[] { "ConseillerMunicipal", "SecretaireMairie", "AdjointMaire", "Maire" };
-                case 4: return new[] { "Vendeur", "ResponsableRayon", "GerantAdjoint", "GerantEpicerie" };
-                case 5: return new[] { "Policier", "Sergent", "LieutenantPolice", "CommissaireAdjoint", "ChefPolice" };
-                case 6: return new[] { "Infirmier", "Chirurgien", "MedecinAdjoint", "MedecinChef" };
+                case 1:
+                    return new[] { "Eboueur", "ResponsableCollecte", "ChefEboueurs" };
+
+                case 2:
+                    return new[] { "Guichetier", "ConseillerBancaire", "DirecteurAdjointBanque", "DirecteurBanque" };
+
+                case 3:
+                    return new[] { "ConseillerMunicipal", "SecretaireMairie", "AdjointMaire", "Maire" };
+
+                case 4:
+                    return new[] { "Vendeur", "ResponsableRayon", "GerantAdjoint", "GerantEpicerie" };
+
+                case 5:
+                    return new[] { "Policier", "Sergent", "LieutenantPolice", "CommissaireAdjoint", "ChefPolice" };
+
+                case 6:
+                    return new[] { "Infirmier", "Chirurgien", "MedecinAdjoint", "MedecinChef" };
+
                 case 7:
                 case 8:
-                case 9: return new[] { "Membre", "Associe", "LieutenantGang", "BrasDroit", "Patron" };
-                default: return new[] { "Citoyen" };
+                case 9:
+                    return new[] { "Membre", "Associe", "LieutenantGang", "BrasDroit", "Patron" };
+
+                default:
+                    return new[] { "Citoyen" };
             }
         }
 
@@ -476,7 +736,10 @@ namespace FusionDarkRP
             };
 
             for (byte i = 0; i < names.Length; i++)
-                if (names[i] == grade) return i;
+            {
+                if (names[i] == grade)
+                    return i;
+            }
 
             return 0;
         }
@@ -489,20 +752,12 @@ namespace FusionDarkRP
             };
 
             for (byte i = 0; i < names.Length; i++)
-                if (names[i] == team) return i;
+            {
+                if (names[i] == team)
+                    return i;
+            }
 
             return 0;
-        }
-
-        private static int Rank(string team, string grade)
-        {
-            byte id = TeamId(team);
-            string[] ranks = Ranks(id);
-
-            for (int i = 0; i < ranks.Length; i++)
-                if (ranks[i] == grade) return i;
-
-            return -1;
         }
 
         private static string TeamDisplay(byte id)
@@ -518,7 +773,8 @@ namespace FusionDarkRP
 
         private static string DisplayGrade(string grade)
         {
-            if (string.IsNullOrEmpty(grade)) return "Citoyen";
+            if (string.IsNullOrEmpty(grade))
+                return "Citoyen";
 
             switch (grade)
             {
@@ -547,11 +803,15 @@ namespace FusionDarkRP
         {
             try
             {
-                object metadata = player.GetType().GetProperty("Metadata").GetValue(player);
-                object username = metadata.GetType().GetProperty("Username").GetValue(metadata);
+                object metadata = player.GetType()
+                    .GetProperty("Metadata").GetValue(player);
 
-                return username.GetType().GetMethod("GetValue").Invoke(username, null) as string
-                    ?? "Joueur";
+                object username = metadata.GetType()
+                    .GetProperty("Username").GetValue(metadata);
+
+                return username.GetType()
+                    .GetMethod("GetValue")
+                    .Invoke(username, null) as string ?? "Joueur";
             }
             catch
             {
@@ -561,10 +821,13 @@ namespace FusionDarkRP
 
         private static string ReadMetadata(object metadata, string key)
         {
-            if (metadata == null) return null;
+            if (metadata == null)
+                return null;
 
             MethodInfo method = metadata.GetType().GetMethod(
-                "GetMetadata", new[] { typeof(string) });
+                "GetMetadata",
+                new[] { typeof(string) }
+            );
 
             return method?.Invoke(metadata, new object[] { key }) as string;
         }
@@ -573,7 +836,9 @@ namespace FusionDarkRP
         {
             try
             {
-                object value = obj.GetType().GetProperty(name)?.GetValue(obj);
+                object value = obj.GetType()
+                    .GetProperty(name)?.GetValue(obj);
+
                 return value is bool && (bool)value;
             }
             catch
@@ -589,8 +854,10 @@ namespace FusionDarkRP
                 Assembly fusion = TrouverAssembly("LabFusion");
                 Type type = fusion?.GetType("LabFusion.Network.NetworkInfo");
 
-                return (bool)type?.GetProperty("IsHost",
-                    BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                return (bool)type?.GetProperty(
+                    "IsHost",
+                    BindingFlags.Public | BindingFlags.Static
+                )?.GetValue(null);
             }
             catch
             {
@@ -601,7 +868,10 @@ namespace FusionDarkRP
         private static Assembly TrouverAssembly(string name)
         {
             foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
-                if (a.GetName().Name == name) return a;
+            {
+                if (a.GetName().Name == name)
+                    return a;
+            }
 
             return null;
         }
