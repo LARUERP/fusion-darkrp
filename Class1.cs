@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -19,7 +20,7 @@ namespace FusionDarkRP
         private static bool demandeInitialeEnvoyee;
         private static DateTime prochaineTentative;
 
-        private static readonly HashSet<byte> pagesJoueurs = new HashSet<byte>();
+        private static readonly Dictionary<byte, object> pagesJoueurs = new Dictionary<byte, object>();
         private static readonly HashSet<byte> pagesGestionOuvertes = new HashSet<byte>();
 
         public override void OnInitializeMelon()
@@ -73,7 +74,6 @@ namespace FusionDarkRP
                     return;
                 }
 
-                // Reessayer jusqu'a ce que les metadonnees soient presentes.
                 DarkRPNetwork.Request(id, 0, 0);
             }
             catch (Exception ex)
@@ -258,6 +258,24 @@ namespace FusionDarkRP
         {
             try
             {
+                // Supprimer les anciennes pages avant de reconstruire la liste.
+                MethodInfo removePage = parent.GetType().GetMethod(
+                    "RemovePage",
+                    new[] { parent.GetType() }
+                );
+
+                if (removePage != null)
+                {
+                    foreach (object oldPage in pagesJoueurs.Values)
+                    {
+                        if (oldPage != null)
+                            removePage.Invoke(parent, new[] { oldPage });
+                    }
+                }
+
+                pagesJoueurs.Clear();
+                pagesGestionOuvertes.Clear();
+
                 Assembly fusion = TrouverAssembly("LabFusion");
                 Type manager = fusion?.GetType("LabFusion.Player.PlayerIDManager");
 
@@ -274,8 +292,6 @@ namespace FusionDarkRP
                     return;
                 }
 
-                HashSet<byte> joueursPresents = new HashSet<byte>();
-
                 foreach (object player in list)
                 {
                     if (player == null || !ReadBool(player, "IsValid"))
@@ -285,11 +301,6 @@ namespace FusionDarkRP
                         player.GetType().GetProperty("SmallID").GetValue(player)
                     );
 
-                    joueursPresents.Add(id);
-
-                    if (pagesJoueurs.Contains(id))
-                        continue;
-
                     bool isMe = ReadBool(player, "IsMe");
                     string name = PlayerName(player);
 
@@ -298,6 +309,23 @@ namespace FusionDarkRP
                         parent,
                         name + " [ID " + id + "]",
                         cyan
+                    );
+
+                    string currentTeam = PlayerTeam(player);
+                    string currentGrade = PlayerGrade(player);
+
+                    AddInfo(
+                        createFunction,
+                        playerPage,
+                        "METIER : " + TeamDisplay(TeamId(currentTeam)),
+                        yellow
+                    );
+
+                    AddInfo(
+                        createFunction,
+                        playerPage,
+                        "GRADE : " + DisplayGrade(currentGrade),
+                        white
                     );
 
                     if (isMe)
@@ -345,12 +373,8 @@ namespace FusionDarkRP
                         )
                     );
 
-                    pagesJoueurs.Add(id);
+                    pagesJoueurs[id] = playerPage;
                 }
-
-                // Nettoyer les anciens joueurs deconnectes.
-                pagesJoueurs.RemoveWhere(id => !joueursPresents.Contains(id));
-                pagesGestionOuvertes.RemoveWhere(id => !joueursPresents.Contains(id));
 
                 MelonLogger.Msg("[Fusion DarkRP] Liste des joueurs actualisee.");
             }
@@ -829,6 +853,42 @@ namespace FusionDarkRP
             catch
             {
                 return "Joueur";
+            }
+        }
+
+        private static string PlayerTeam(object player)
+        {
+            try
+            {
+                object metadata = player.GetType()
+                    .GetProperty("Metadata")?.GetValue(player);
+
+                object data = metadata?.GetType()
+                    .GetProperty("Metadata")?.GetValue(metadata);
+
+                return ReadMetadata(data, TEAM_KEY) ?? "Citoyen";
+            }
+            catch
+            {
+                return "Citoyen";
+            }
+        }
+
+        private static string PlayerGrade(object player)
+        {
+            try
+            {
+                object metadata = player.GetType()
+                    .GetProperty("Metadata")?.GetValue(player);
+
+                object data = metadata?.GetType()
+                    .GetProperty("Metadata")?.GetValue(metadata);
+
+                return ReadMetadata(data, GRADE_KEY) ?? "Citoyen";
+            }
+            catch
+            {
+                return "Citoyen";
             }
         }
 
