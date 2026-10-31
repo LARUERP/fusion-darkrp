@@ -5,6 +5,7 @@ using LabFusion.Network.Serialization;
 using LabFusion.Player;
 using LabFusion.Senders;
 using LabFusion.SDK.Modules;
+using LabFusion.UI.Popups;
 
 namespace FusionDarkRP
 {
@@ -24,6 +25,69 @@ namespace FusionDarkRP
         }
     }
 
+    public sealed class DarkRPNotificationData : INetSerializable
+    {
+        public byte TargetId;
+        public byte Team;
+        public byte Grade;
+
+        public int? GetSize() => 3;
+
+        public void Serialize(INetSerializer serializer)
+        {
+            serializer.SerializeValue(ref TargetId);
+            serializer.SerializeValue(ref Team);
+            serializer.SerializeValue(ref Grade);
+        }
+    }
+
+    public sealed class DarkRPNotificationHandler : ModuleMessageHandler
+    {
+        public override ExpectedReceiverType ExpectedReceiver =>
+            ExpectedReceiverType.ClientsOnly;
+
+        protected override bool OnPreRelayMessage(ReceivedMessage received)
+        {
+            return received.Bytes != null && received.Bytes.Length == 3;
+        }
+
+        protected override void OnHandleMessage(ReceivedMessage received)
+        {
+            try
+            {
+                DarkRPNotificationData data =
+                    received.ReadData<DarkRPNotificationData>();
+
+                PlayerID local = PlayerIDManager.LocalID;
+
+                if (local == null || !local.IsValid ||
+                    local.SmallID != data.TargetId)
+                    return;
+
+                string team = DarkRPNetwork.TeamName(data.Team);
+                string grade = DarkRPNetwork.GradeName(data.Grade);
+
+                if (team == null || grade == null)
+                    return;
+
+                Notifier.Send(new Notification
+                {
+                    Title = "Fusion DarkRP",
+                    Message = "Ton métier : " + team +
+                              " | Grade : " + grade,
+                    Type = NotificationType.SUCCESS,
+                    PopupLength = 4f,
+                    SaveToMenu = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MelonLoader.MelonLogger.Error(
+                    "[Fusion DarkRP] Erreur notification : " + ex);
+            }
+        }
+    }
+
     public sealed class DarkRPRequestHandler : ModuleMessageHandler
     {
         public override ExpectedReceiverType ExpectedReceiver =>
@@ -31,9 +95,8 @@ namespace FusionDarkRP
 
         protected override bool OnPreRelayMessage(ReceivedMessage received)
         {
-            // LabFusion ne renseigne pas Sender à cette étape.
-            return received.Bytes != null &&
-                   received.Bytes.Length == 3;
+            // Sender n'est pas encore renseigne pendant cette etape.
+            return received.Bytes != null && received.Bytes.Length == 3;
         }
 
         protected override void OnHandleMessage(ReceivedMessage received)
@@ -60,8 +123,7 @@ namespace FusionDarkRP
                     sender, target, data.Team, data.Grade))
                 {
                     MelonLoader.MelonLogger.Warning(
-                        "[Fusion DarkRP] Attribution refusee : permissions insuffisantes."
-                    );
+                        "[Fusion DarkRP] Attribution refusee : permissions insuffisantes.");
                     return;
                 }
 
@@ -71,6 +133,14 @@ namespace FusionDarkRP
                 if (team == null || grade == null)
                     return;
 
+                // Mise a jour immediate des donnees connues de l'hote.
+                target.Metadata.Metadata.ForceSetLocalMetadata(
+                    DarkRPNetwork.TeamKey, team);
+
+                target.Metadata.Metadata.ForceSetLocalMetadata(
+                    DarkRPNetwork.GradeKey, grade);
+
+                // Diffusion des deux metadonnees aux clients.
                 PlayerSender.SendPlayerMetadataResponse(
                     target.SmallID,
                     DarkRPNetwork.TeamKey,
@@ -81,10 +151,32 @@ namespace FusionDarkRP
                     DarkRPNetwork.GradeKey,
                     grade);
 
+                // Notification de l'hote si la cible est lui-meme.
+                PlayerID local = PlayerIDManager.LocalID;
+
+                if (local != null && local.IsValid &&
+                    local.SmallID == target.SmallID)
+                {
+                    DarkRPNetwork.ShowNotification(team, grade);
+                }
+                else
+                {
+                    // Les clients filtrent la notification par TargetId.
+                    MessageRelay.RelayModule<
+                        DarkRPNotificationHandler,
+                        DarkRPNotificationData>(
+                        new DarkRPNotificationData
+                        {
+                            TargetId = target.SmallID,
+                            Team = data.Team,
+                            Grade = data.Grade
+                        },
+                        CommonMessageRoutes.ReliableToClients);
+                }
+
                 MelonLoader.MelonLogger.Msg(
-                    "[Fusion DarkRP] Attribution envoyee : joueur ID " +
-                    target.SmallID + " -> " + team + " / " + grade
-                );
+                    "[Fusion DarkRP] Attribution appliquee : joueur ID " +
+                    target.SmallID + " -> " + team + " / " + grade);
             }
             catch (Exception ex)
             {
@@ -117,8 +209,7 @@ namespace FusionDarkRP
             if (!NetworkInfo.HasServer)
             {
                 MelonLoader.MelonLogger.Warning(
-                    "[Fusion DarkRP] Aucune connexion serveur."
-                );
+                    "[Fusion DarkRP] Aucune connexion serveur.");
                 return;
             }
 
@@ -130,15 +221,35 @@ namespace FusionDarkRP
             };
 
             MelonLoader.MelonLogger.Msg(
-                "[Fusion DarkRP] Demande envoyee : cible " + targetId +
-                ", equipe " + team + ", grade " + grade
-            );
+                "[Fusion DarkRP] Demande : cible " + targetId +
+                ", equipe " + team + ", grade " + grade);
 
             MessageRelay.RelayModule<
                 DarkRPRequestHandler,
                 DarkRPRequestData>(
                 data,
                 CommonMessageRoutes.ReliableToServer);
+        }
+
+        public static void ShowNotification(string team, string grade)
+        {
+            try
+            {
+                Notifier.Send(new Notification
+                {
+                    Title = "Fusion DarkRP",
+                    Message = "Ton métier : " + team +
+                              " | Grade : " + grade,
+                    Type = NotificationType.SUCCESS,
+                    PopupLength = 4f,
+                    SaveToMenu = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MelonLoader.MelonLogger.Warning(
+                    "[Fusion DarkRP] Notification impossible : " + ex.Message);
+            }
         }
 
         public static bool CanApply(
@@ -162,8 +273,7 @@ namespace FusionDarkRP
             if (sender.IsHost)
                 return true;
 
-            // Un joueur peut uniquement choisir les metiers publics
-            // autorises pour lui-meme.
+            // Un joueur peut choisir les metiers publics pour lui-meme.
             if (sender.SmallID == target.SmallID)
             {
                 return (team == 0 && grade == 0) ||
@@ -193,14 +303,14 @@ namespace FusionDarkRP
                     return false;
 
                 int oldRank = Rank(targetTeam, targetGrade);
-
                 return oldRank >= 0 && oldRank < managerRank;
             }
 
             if (requestedTeam != managerTeam)
                 return false;
 
-            if (requestedGrade == managerRanks[managerRanks.Length - 1])
+            if (requestedGrade ==
+                managerRanks[managerRanks.Length - 1])
                 return false;
 
             string[] targetRanks = Ranks(targetTeam);
@@ -218,7 +328,6 @@ namespace FusionDarkRP
             }
 
             int newRank = Rank(requestedTeam, requestedGrade);
-
             return newRank >= 0 && newRank < managerRank;
         }
 
