@@ -1,10 +1,11 @@
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using MelonLoader;
 
-[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP", "1.4.0", "LARUERP")]
+[assembly: MelonInfo(typeof(FusionDarkRP.MainMod), "Fusion DarkRP", "1.5.0", "LARUERP")]
 [assembly: MelonGame("Stress Level Zero", "BONELAB")]
 
 namespace FusionDarkRP
@@ -16,66 +17,29 @@ namespace FusionDarkRP
 
         public enum Equipe
         {
-            Citoyen,
-            Eboueurs,
-            Banque,
-            Mairie,
-            Epicerie,
-            Police,
-            Medecins,
-            Marseillais,
-            Parisiens,
-            GensDuVoyage
+            Citoyen, Eboueurs, Banque, Mairie, Epicerie,
+            Police, Medecins, Marseillais, Parisiens, GensDuVoyage
         }
 
         public enum Grade
         {
             Citoyen,
-
-            Eboueur,
-            ResponsableCollecte,
-            ChefEboueurs,
-
-            Guichetier,
-            ConseillerBancaire,
-            DirecteurAdjointBanque,
-            DirecteurBanque,
-
-            ConseillerMunicipal,
-            SecretaireMairie,
-            AdjointMaire,
-            Maire,
-
-            Vendeur,
-            ResponsableRayon,
-            GerantAdjoint,
-            GerantEpicerie,
-
-            Policier,
-            Sergent,
-            LieutenantPolice,
-            CommissaireAdjoint,
-            ChefPolice,
-
-            Infirmier,
-            Chirurgien,
-            MedecinAdjoint,
-            MedecinChef,
-
-            Membre,
-            Associe,
-            LieutenantGang,
-            BrasDroit,
-            Patron
+            Eboueur, ResponsableCollecte, ChefEboueurs,
+            Guichetier, ConseillerBancaire, DirecteurAdjointBanque, DirecteurBanque,
+            ConseillerMunicipal, SecretaireMairie, AdjointMaire, Maire,
+            Vendeur, ResponsableRayon, GerantAdjoint, GerantEpicerie,
+            Policier, Sergent, LieutenantPolice, CommissaireAdjoint, ChefPolice,
+            Infirmier, Chirurgien, MedecinAdjoint, MedecinChef,
+            Membre, Associe, LieutenantGang, BrasDroit, Patron
         }
 
         private static bool _menuCree;
         private static DateTime _prochaineTentative = DateTime.MinValue;
+        private static readonly HashSet<byte> PagesJoueurs = new HashSet<byte>();
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("[Fusion DarkRP] Version 1.4.0 chargee.");
-            MelonLogger.Msg("[Fusion DarkRP] Systeme de postes initialise.");
+            MelonLogger.Msg("[Fusion DarkRP] Version 1.5.0 initialisee.");
         }
 
         public override void OnUpdate()
@@ -87,36 +51,23 @@ namespace FusionDarkRP
             CreerMenu();
         }
 
-        // --------------------------------------------------
-        // INITIALISATION DU BONEMENU
-        // --------------------------------------------------
-
         private static void CreerMenu()
         {
             try
             {
                 Assembly boneLib = TrouverAssembly("BoneLib");
-
-                if (boneLib == null)
-                    return;
+                if (boneLib == null) return;
 
                 Type pageType = boneLib.GetType("BoneLib.BoneMenu.Page");
-                Type colorType = Type.GetType(
-                    "UnityEngine.Color, UnityEngine.CoreModule"
-                );
+                Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
 
-                if (pageType == null || colorType == null)
-                    return;
+                if (pageType == null || colorType == null) return;
 
-                PropertyInfo rootProperty = pageType.GetProperty(
-                    "Root",
-                    BindingFlags.Public | BindingFlags.Static
-                );
+                object root = pageType.GetProperty(
+                    "Root", BindingFlags.Public | BindingFlags.Static
+                )?.GetValue(null);
 
-                object root = rootProperty?.GetValue(null);
-
-                if (root == null)
-                    return;
+                if (root == null) return;
 
                 MethodInfo createPage = null;
 
@@ -135,8 +86,7 @@ namespace FusionDarkRP
                     new Type[] { typeof(string), colorType, typeof(Action) }
                 );
 
-                if (createPage == null || createFunction == null)
-                    return;
+                if (createPage == null || createFunction == null) return;
 
                 object blanc = Couleur(colorType, "white");
                 object jaune = Couleur(colorType, "yellow");
@@ -146,663 +96,563 @@ namespace FusionDarkRP
                 object cyan = Couleur(colorType, "cyan");
                 object gris = Couleur(colorType, "gray");
 
-                object principal = Page(
-                    createPage, root, "Fusion DarkRP", jaune
-                );
+                object principal = Page(createPage, root, "Fusion DarkRP", jaune);
+                object publics = Page(createPage, principal, "Jobs publics", blanc);
+                object factions = Page(createPage, principal, "Factions", gris);
+                object grades = Page(createPage, principal, "Hierarchies", blanc);
+                object joueurs = Page(createPage, principal, "Joueurs connectes", cyan);
+                object administration = Page(createPage, principal, "Administration hote", rouge);
+                object personnage = Page(createPage, principal, "Mon personnage", vert);
 
-                object publics = Page(
-                    createPage, principal, "Jobs publics", blanc
-                );
+                // METIERS PUBLICS : accessibles a tous
 
-                object factions = Page(
-                    createPage, principal, "Factions", gris
-                );
-
-                object grades = Page(
-                    createPage, principal, "Hierarchies", blanc
-                );
-
-                object joueurs = Page(
-                    createPage, principal, "Joueurs connectes", cyan
-                );
-
-                object administration = Page(
-                    createPage, principal, "Administration hote", rouge
-                );
-
-                object personnage = Page(
-                    createPage, principal, "Mon personnage", vert
-                );
-
-                // JOBS PUBLICS
-
-                Ajouter(createFunction, publics, "Citoyen",
+                AjouterPublic(createFunction, publics, "Citoyen",
                     Equipe.Citoyen, Grade.Citoyen, blanc);
 
-                Ajouter(createFunction, publics, "Eboueur",
+                AjouterPublic(createFunction, publics, "Eboueur",
                     Equipe.Eboueurs, Grade.Eboueur, vert);
 
-                Ajouter(createFunction, publics, "Banquier",
+                AjouterPublic(createFunction, publics, "Banquier",
                     Equipe.Banque, Grade.Guichetier, jaune);
 
-                Ajouter(createFunction, publics, "Poste a la mairie",
+                AjouterPublic(createFunction, publics, "Poste a la mairie",
                     Equipe.Mairie, Grade.ConseillerMunicipal, cyan);
 
-                Ajouter(createFunction, publics, "Epicier",
+                AjouterPublic(createFunction, publics, "Epicier",
                     Equipe.Epicerie, Grade.Vendeur, vert);
 
-                // FACTIONS
+                // FACTIONS : recrutement par l'administration
 
-                Ajouter(createFunction, factions, "Police",
-                    Equipe.Police, Grade.Policier, bleu);
-
-                Ajouter(createFunction, factions, "Medecins",
-                    Equipe.Medecins, Grade.Infirmier, vert);
-
-                Ajouter(createFunction, factions, "Les Marseillais",
-                    Equipe.Marseillais, Grade.Membre, rouge);
-
-                Ajouter(createFunction, factions, "Les Parisiens",
-                    Equipe.Parisiens, Grade.Membre, bleu);
-
-                Ajouter(createFunction, factions, "Les Gens du Voyage",
-                    Equipe.GensDuVoyage, Grade.Membre, jaune);
+                AjouterInfo(createFunction, factions, "Police - recrutement par l'hote", bleu);
+                AjouterInfo(createFunction, factions, "Medecins - recrutement par l'hote", vert);
+                AjouterInfo(createFunction, factions, "Les Marseillais - recrutement par l'hote", rouge);
+                AjouterInfo(createFunction, factions, "Les Parisiens - recrutement par l'hote", bleu);
+                AjouterInfo(createFunction, factions, "Les Gens du Voyage - recrutement par l'hote", jaune);
 
                 // HIERARCHIES
 
                 AjouterGrades(createPage, createFunction, grades,
-                    "Mairie", Equipe.Mairie, jaune,
-                    blanc, cyan, jaune,
+                    "Mairie", Equipe.Mairie, jaune, blanc,
                     new Grade[] {
-                        Grade.ConseillerMunicipal,
-                        Grade.SecretaireMairie,
-                        Grade.AdjointMaire,
-                        Grade.Maire
+                        Grade.ConseillerMunicipal, Grade.SecretaireMairie,
+                        Grade.AdjointMaire, Grade.Maire
                     });
 
                 AjouterGrades(createPage, createFunction, grades,
-                    "Police", Equipe.Police, bleu,
-                    blanc, cyan, jaune,
+                    "Police", Equipe.Police, bleu, blanc,
                     new Grade[] {
-                        Grade.Policier,
-                        Grade.Sergent,
-                        Grade.LieutenantPolice,
-                        Grade.CommissaireAdjoint,
-                        Grade.ChefPolice
+                        Grade.Policier, Grade.Sergent, Grade.LieutenantPolice,
+                        Grade.CommissaireAdjoint, Grade.ChefPolice
                     });
 
                 AjouterGrades(createPage, createFunction, grades,
-                    "Medecins", Equipe.Medecins, vert,
-                    blanc, cyan, jaune,
+                    "Medecins", Equipe.Medecins, vert, blanc,
                     new Grade[] {
-                        Grade.Infirmier,
-                        Grade.Chirurgien,
-                        Grade.MedecinAdjoint,
-                        Grade.MedecinChef
+                        Grade.Infirmier, Grade.Chirurgien,
+                        Grade.MedecinAdjoint, Grade.MedecinChef
                     });
 
                 AjouterGrades(createPage, createFunction, grades,
-                    "Eboueurs", Equipe.Eboueurs, vert,
-                    blanc, cyan, jaune,
+                    "Eboueurs", Equipe.Eboueurs, vert, blanc,
                     new Grade[] {
-                        Grade.Eboueur,
-                        Grade.ResponsableCollecte,
-                        Grade.ChefEboueurs
+                        Grade.Eboueur, Grade.ResponsableCollecte, Grade.ChefEboueurs
                     });
 
                 AjouterGrades(createPage, createFunction, grades,
-                    "Banque", Equipe.Banque, jaune,
-                    blanc, cyan, jaune,
+                    "Banque", Equipe.Banque, jaune, blanc,
                     new Grade[] {
-                        Grade.Guichetier,
-                        Grade.ConseillerBancaire,
-                        Grade.DirecteurAdjointBanque,
-                        Grade.DirecteurBanque
+                        Grade.Guichetier, Grade.ConseillerBancaire,
+                        Grade.DirecteurAdjointBanque, Grade.DirecteurBanque
                     });
 
                 AjouterGrades(createPage, createFunction, grades,
-                    "Epicerie", Equipe.Epicerie, vert,
-                    blanc, cyan, jaune,
+                    "Epicerie", Equipe.Epicerie, vert, blanc,
                     new Grade[] {
-                        Grade.Vendeur,
-                        Grade.ResponsableRayon,
-                        Grade.GerantAdjoint,
-                        Grade.GerantEpicerie
+                        Grade.Vendeur, Grade.ResponsableRayon,
+                        Grade.GerantAdjoint, Grade.GerantEpicerie
                     });
 
-                AjouterGradesGang(createPage, createFunction, grades,
-                    "Marseillais", Equipe.Marseillais, rouge,
-                    blanc, cyan, jaune);
+                AjouterGrades(createPage, createFunction, grades,
+                    "Marseillais", Equipe.Marseillais, rouge, blanc,
+                    new Grade[] {
+                        Grade.Membre, Grade.Associe, Grade.LieutenantGang,
+                        Grade.BrasDroit, Grade.Patron
+                    });
 
-                AjouterGradesGang(createPage, createFunction, grades,
-                    "Parisiens", Equipe.Parisiens, bleu,
-                    blanc, cyan, jaune);
+                AjouterGrades(createPage, createFunction, grades,
+                    "Parisiens", Equipe.Parisiens, bleu, blanc,
+                    new Grade[] {
+                        Grade.Membre, Grade.Associe, Grade.LieutenantGang,
+                        Grade.BrasDroit, Grade.Patron
+                    });
 
-                AjouterGradesGang(createPage, createFunction, grades,
-                    "Gens du Voyage", Equipe.GensDuVoyage, jaune,
-                    blanc, cyan, jaune);
+                AjouterGrades(createPage, createFunction, grades,
+                    "Gens du Voyage", Equipe.GensDuVoyage, jaune, blanc,
+                    new Grade[] {
+                        Grade.Membre, Grade.Associe, Grade.LieutenantGang,
+                        Grade.BrasDroit, Grade.Patron
+                    });
 
-                // ADMINISTRATION : NOMINATIONS HOTE
+                // ADMINISTRATION
 
-                AjouterNomination(createFunction, administration,
-                    "Nommer Maire", Equipe.Mairie, Grade.Maire, jaune);
+                AjouterInfo(createFunction, administration,
+                    "Selectionner un joueur dans Joueurs connectes", jaune);
 
-                AjouterNomination(createFunction, administration,
-                    "Nommer Chef de police", Equipe.Police, Grade.ChefPolice, bleu);
-
-                AjouterNomination(createFunction, administration,
-                    "Nommer Medecin-chef", Equipe.Medecins, Grade.MedecinChef, vert);
-
-                AjouterNomination(createFunction, administration,
-                    "Nommer Chef des eboueurs", Equipe.Eboueurs, Grade.ChefEboueurs, vert);
-
-                AjouterNomination(createFunction, administration,
-                    "Nommer Directeur de banque", Equipe.Banque, Grade.DirecteurBanque, jaune);
-
-                AjouterNomination(createFunction, administration,
-                    "Nommer Gerant epicerie", Equipe.Epicerie, Grade.GerantEpicerie, vert);
-
-                AjouterNomination(createFunction, administration,
-                    "Nommer Patron Marseillais", Equipe.Marseillais, Grade.Patron, rouge);
-
-                AjouterNomination(createFunction, administration,
-                    "Nommer Patron Parisien", Equipe.Parisiens, Grade.Patron, bleu);
-
-                AjouterNomination(createFunction, administration,
-                    "Nommer Patron Gens du Voyage", Equipe.GensDuVoyage, Grade.Patron, jaune);
+                AjouterInfo(createFunction, administration,
+                    "Seul l'hote peut attribuer les grades de chef et patron", rouge);
 
                 // JOUEURS CONNECTES
 
-                Action actualiser = () =>
-                    ActualiserJoueurs(
+                Fonction(createFunction, joueurs, "Actualiser la liste",
+                    cyan, () => ActualiserJoueurs(
                         createPage, createFunction, joueurs,
                         blanc, jaune, vert, bleu, rouge, cyan
-                    );
-
-                Fonction(createFunction, joueurs,
-                    "Actualiser la liste", cyan, actualiser);
+                    ));
 
                 // PERSONNAGE
 
-                Fonction(createFunction, personnage,
-                    "Afficher mon equipe", blanc,
-                    () => AfficherMonStatut());
+                Fonction(createFunction, personnage, "Afficher mon equipe",
+                    blanc, AfficherMonStatut);
 
-                Fonction(createFunction, personnage,
-                    "Afficher mon grade", blanc,
-                    () => AfficherMonStatut());
+                Fonction(createFunction, personnage, "Afficher mon grade",
+                    blanc, AfficherMonStatut);
 
                 _menuCree = true;
-
                 MelonLogger.Msg("[Fusion DarkRP] Menu cree.");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error(
-                    "[Fusion DarkRP] Erreur menu : " + ex
-                );
+                MelonLogger.Error("[Fusion DarkRP] Erreur menu : " + ex);
             }
         }
 
-        // --------------------------------------------------
-        // CREATION DES HIERARCHIES
-        // --------------------------------------------------
-
-        private static void AjouterGradesGang(
-            MethodInfo createPage,
-            MethodInfo createFunction,
-            object parent,
-            string nom,
-            Equipe equipe,
-            object couleur,
-            object blanc,
-            object cyan,
-            object jaune)
+        private static void AjouterPublic(
+            MethodInfo method, object page, string label,
+            Equipe equipe, Grade grade, object couleur)
         {
-            AjouterGrades(createPage, createFunction, parent,
-                nom, equipe, couleur, blanc, cyan, jaune,
-                new Grade[] {
-                    Grade.Membre,
-                    Grade.Associe,
-                    Grade.LieutenantGang,
-                    Grade.BrasDroit,
-                    Grade.Patron
-                });
+            Fonction(method, page, label, couleur, () =>
+            {
+                if (!EstPostePublic(equipe))
+                {
+                    MelonLogger.Warning("[Fusion DarkRP] Poste non public.");
+                    return;
+                }
+
+                ChangerMonPoste(equipe, grade);
+            });
+        }
+
+        private static bool EstPostePublic(Equipe equipe)
+        {
+            return equipe == Equipe.Citoyen ||
+                   equipe == Equipe.Eboueurs ||
+                   equipe == Equipe.Banque ||
+                   equipe == Equipe.Mairie ||
+                   equipe == Equipe.Epicerie;
+        }
+
+        private static void AjouterInfo(
+            MethodInfo method, object page, string label, object couleur)
+        {
+            Fonction(method, page, label, couleur, () =>
+                MelonLogger.Msg("[Fusion DarkRP] " + label));
         }
 
         private static void AjouterGrades(
-            MethodInfo createPage,
-            MethodInfo createFunction,
-            object parent,
-            string nom,
-            Equipe equipe,
-            object couleur,
-            object blanc,
-            object cyan,
-            object jaune,
-            Grade[] liste)
+            MethodInfo createPage, MethodInfo createFunction,
+            object parent, string nom, Equipe equipe,
+            object couleur, object blanc, Grade[] liste)
         {
             object page = Page(createPage, parent, nom, couleur);
 
             foreach (Grade grade in liste)
             {
-                object c = blanc;
-
-                if (grade == Grade.BrasDroit ||
-                    grade == Grade.AdjointMaire ||
-                    grade == Grade.LieutenantGang ||
-                    grade == Grade.ResponsableCollecte ||
-                    grade == Grade.Sergent ||
-                    grade == Grade.LieutenantPolice ||
-                    grade == Grade.Chirurgien ||
-                    grade == Grade.ConseillerBancaire ||
-                    grade == Grade.ResponsableRayon)
-                    c = cyan;
-
-                if (grade == Grade.Patron ||
-                    grade == Grade.Maire ||
-                    grade == Grade.ChefPolice ||
-                    grade == Grade.MedecinChef ||
-                    grade == Grade.ChefEboueurs ||
-                    grade == Grade.DirecteurBanque ||
-                    grade == Grade.GerantEpicerie)
-                    c = jaune;
-
-                Ajouter(createFunction, page,
-                    NomGrade(grade), equipe, grade, c);
+                Fonction(createFunction, page, NomGrade(grade), blanc, () =>
+                {
+                    MelonLogger.Msg(
+                        "[Fusion DarkRP] Grade " + NomGrade(grade) +
+                        " : attribution par un administrateur depuis Joueurs connectes."
+                    );
+                });
             }
         }
 
-        // --------------------------------------------------
-        // LISTE DES JOUEURS LABFUSION
-        // --------------------------------------------------
+        // LISTE DES JOUEURS
 
         private static void ActualiserJoueurs(
-            MethodInfo createPage,
-            MethodInfo createFunction,
-            object parent,
-            object blanc,
-            object jaune,
-            object vert,
-            object bleu,
-            object rouge,
-            object cyan)
+            MethodInfo createPage, MethodInfo createFunction,
+            object parent, object blanc, object jaune, object vert,
+            object bleu, object rouge, object cyan)
         {
             try
             {
                 Assembly fusion = TrouverAssembly("LabFusion");
-
-                if (fusion == null)
-                {
-                    MelonLogger.Warning("[Fusion DarkRP] LabFusion introuvable.");
-                    return;
-                }
-
-                Type manager = fusion.GetType(
-                    "LabFusion.Player.PlayerIDManager"
-                );
+                Type manager = fusion?.GetType("LabFusion.Player.PlayerIDManager");
 
                 PropertyInfo idsProperty = manager?.GetProperty(
-                    "PlayerIDs",
-                    BindingFlags.Public | BindingFlags.Static
+                    "PlayerIDs", BindingFlags.Public | BindingFlags.Static
                 );
 
-                if (idsProperty == null)
-                {
-                    MelonLogger.Warning("[Fusion DarkRP] PlayerIDs introuvable.");
-                    return;
-                }
-
-                IEnumerable ids = idsProperty.GetValue(null) as IEnumerable;
+                IEnumerable ids = idsProperty?.GetValue(null) as IEnumerable;
 
                 if (ids == null)
+                {
+                    MelonLogger.Warning("[Fusion DarkRP] Liste LabFusion indisponible.");
                     return;
+                }
 
                 int compteur = 0;
 
                 foreach (object player in ids)
                 {
-                    if (player == null)
-                        continue;
+                    if (player == null) continue;
 
-                    PropertyInfo validProperty = player.GetType().GetProperty("IsValid");
+                    Type type = player.GetType();
 
+                    PropertyInfo validProperty = type.GetProperty("IsValid");
                     if (validProperty != null &&
                         !(bool)validProperty.GetValue(player))
                         continue;
 
-                    PropertyInfo smallIdProperty = player.GetType().GetProperty("SmallID");
-                    PropertyInfo meProperty = player.GetType().GetProperty("IsMe");
-                    PropertyInfo hostProperty = player.GetType().GetProperty("IsHost");
+                    PropertyInfo idProperty = type.GetProperty("SmallID");
+                    if (idProperty == null) continue;
 
-                    object id = smallIdProperty?.GetValue(player);
-                    bool estMoi = meProperty != null &&
-                        (bool)meProperty.GetValue(player);
+                    byte id = Convert.ToByte(idProperty.GetValue(player));
 
-                    bool estHote = hostProperty != null &&
-                        (bool)hostProperty.GetValue(player);
+                    if (PagesJoueurs.Contains(id)) continue;
 
+                    bool estMoi = LireBool(player, "IsMe");
+                    bool estHote = LireBool(player, "IsHost");
                     string nom = LireNomJoueur(player);
 
                     string etiquette = nom + " [ID " + id + "]";
+                    if (estMoi) etiquette += " (Moi)";
+                    if (estHote) etiquette += " (Hote)";
 
-                    if (estMoi)
-                        etiquette += " (Moi)";
-
-                    if (estHote)
-                        etiquette += " (Hote)";
-
-                    object page = Page(
-                        createPage, parent, etiquette, cyan
-                    );
-
-                    // Un joueur ne peut etre affecte par ce menu
-                    // que par l'hote. Les joueurs peuvent toujours
-                    // choisir leur propre poste public.
+                    object page = Page(createPage, parent, etiquette, cyan);
 
                     if (EstHote())
                     {
-                        object postes = Page(
-                            createPage, page, "Affecter un poste", blanc
+                        object equipePage = Page(
+                            createPage, page, "Choisir une equipe", blanc
                         );
 
-                        AjouterCible(createFunction, postes, player,
-                            "Citoyen", Equipe.Citoyen, Grade.Citoyen, blanc);
+                        AjouterEquipeCible(createPage, createFunction,
+                            equipePage, player, Equipe.Citoyen, blanc);
 
-                        AjouterCible(createFunction, postes, player,
-                            "Eboueur", Equipe.Eboueurs, Grade.Eboueur, vert);
+                        AjouterEquipeCible(createPage, createFunction,
+                            equipePage, player, Equipe.Eboueurs, vert);
 
-                        AjouterCible(createFunction, postes, player,
-                            "Banquier", Equipe.Banque, Grade.Guichetier, jaune);
+                        AjouterEquipeCible(createPage, createFunction,
+                            equipePage, player, Equipe.Banque, jaune);
 
-                        AjouterCible(createFunction, postes, player,
-                            "Mairie", Equipe.Mairie, Grade.ConseillerMunicipal, cyan);
+                        AjouterEquipeCible(createPage, createFunction,
+                            equipePage, player, Equipe.Mairie, cyan);
 
-                        AjouterCible(createFunction, postes, player,
-                            "Epicier", Equipe.Epicerie, Grade.Vendeur, vert);
+                        AjouterEquipeCible(createPage, createFunction,
+                            equipePage, player, Equipe.Epicerie, vert);
 
-                        AjouterCible(createFunction, postes, player,
-                            "Police", Equipe.Police, Grade.Policier, bleu);
+                        AjouterEquipeCible(createPage, createFunction,
+                            equipePage, player, Equipe.Police, bleu);
 
-                        AjouterCible(createFunction, postes, player,
-                            "Medecin", Equipe.Medecins, Grade.Infirmier, vert);
+                        AjouterEquipeCible(createPage, createFunction,
+                            equipePage, player, Equipe.Medecins, vert);
 
-                        AjouterCible(createFunction, postes, player,
-                            "Marseillais", Equipe.Marseillais, Grade.Membre, rouge);
+                        AjouterEquipeCible(createPage, createFunction,
+                            equipePage, player, Equipe.Marseillais, rouge);
 
-                        AjouterCible(createFunction, postes, player,
-                            "Parisiens", Equipe.Parisiens, Grade.Membre, bleu);
+                        AjouterEquipeCible(createPage, createFunction,
+                            equipePage, player, Equipe.Parisiens, bleu);
 
-                        AjouterCible(createFunction, postes, player,
-                            "Gens du Voyage", Equipe.GensDuVoyage, Grade.Membre, jaune);
+                        AjouterEquipeCible(createPage, createFunction,
+                            equipePage, player, Equipe.GensDuVoyage, jaune);
                     }
 
+                    PagesJoueurs.Add(id);
                     compteur++;
                 }
 
                 MelonLogger.Msg(
-                    "[Fusion DarkRP] Joueurs trouves : " + compteur
+                    "[Fusion DarkRP] Nouveaux joueurs affiches : " + compteur
                 );
 
                 if (compteur == 0)
-                    MelonLogger.Msg("[Fusion DarkRP] Aucun joueur connecte.");
+                    MelonLogger.Msg("[Fusion DarkRP] Aucun nouveau joueur a afficher.");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error(
-                    "[Fusion DarkRP] Erreur liste joueurs : " + ex
-                );
+                MelonLogger.Error("[Fusion DarkRP] Erreur joueurs : " + ex);
             }
         }
 
-        private static void AjouterCible(
-            MethodInfo method,
-            object page,
-            object joueur,
-            string label,
-            Equipe equipe,
-            Grade grade,
-            object couleur)
+        private static void AjouterEquipeCible(
+            MethodInfo createPage, MethodInfo createFunction,
+            object parent, object joueur, Equipe equipe, object couleur)
         {
-            Fonction(method, page, label, couleur, () =>
-            {
-                if (!EstHote())
-                {
-                    MelonLogger.Warning(
-                        "[Fusion DarkRP] Seul l'hote peut affecter un autre joueur."
-                    );
-                    return;
-                }
+            object page = Page(
+                createPage, parent, NomEquipe(equipe), couleur
+            );
 
-                if (EcrireMetadataJoueur(joueur, TEAM_KEY, equipe.ToString()) &&
-                    EcrireMetadataJoueur(joueur, GRADE_KEY, grade.ToString()))
+            foreach (Grade grade in GradesDequipe(equipe))
+            {
+                Fonction(createFunction, page, NomGrade(grade), couleur, () =>
                 {
-                    MelonLogger.Msg(
-                        "[Fusion DarkRP] Affectation envoyee : " +
-                        label + " / " + NomGrade(grade)
-                    );
-                }
-            });
+                    if (!EstHote())
+                    {
+                        MelonLogger.Warning("[Fusion DarkRP] Action reservee a l'hote.");
+                        return;
+                    }
+
+                    if (!EstGradeAutorisePourEquipe(equipe, grade))
+                    {
+                        MelonLogger.Warning("[Fusion DarkRP] Grade invalide pour cette equipe.");
+                        return;
+                    }
+
+                    if (EcrireMetadataJoueur(joueur, TEAM_KEY, equipe.ToString()) &&
+                        EcrireMetadataJoueur(joueur, GRADE_KEY, grade.ToString()))
+                    {
+                        MelonLogger.Msg(
+                            "[Fusion DarkRP] Joueur affecte : " +
+                            NomEquipe(equipe) + " / " + NomGrade(grade)
+                        );
+                    }
+                    else
+                    {
+                        MelonLogger.Warning(
+                            "[Fusion DarkRP] Echec de l'attribution. Verifie LabFusion."
+                        );
+                    }
+                });
+            }
         }
 
-        // --------------------------------------------------
-        // METADONNEES ET SYNCHRONISATION LABFUSION
-        // --------------------------------------------------
+        private static Grade[] GradesDequipe(Equipe equipe)
+        {
+            switch (equipe)
+            {
+                case Equipe.Citoyen:
+                    return new[] { Grade.Citoyen };
+                case Equipe.Eboueurs:
+                    return new[] { Grade.Eboueur, Grade.ResponsableCollecte, Grade.ChefEboueurs };
+                case Equipe.Banque:
+                    return new[] { Grade.Guichetier, Grade.ConseillerBancaire, Grade.DirecteurAdjointBanque, Grade.DirecteurBanque };
+                case Equipe.Mairie:
+                    return new[] { Grade.ConseillerMunicipal, Grade.SecretaireMairie, Grade.AdjointMaire, Grade.Maire };
+                case Equipe.Epicerie:
+                    return new[] { Grade.Vendeur, Grade.ResponsableRayon, Grade.GerantAdjoint, Grade.GerantEpicerie };
+                case Equipe.Police:
+                    return new[] { Grade.Policier, Grade.Sergent, Grade.LieutenantPolice, Grade.CommissaireAdjoint, Grade.ChefPolice };
+                case Equipe.Medecins:
+                    return new[] { Grade.Infirmier, Grade.Chirurgien, Grade.MedecinAdjoint, Grade.MedecinChef };
+                case Equipe.Marseillais:
+                case Equipe.Parisiens:
+                case Equipe.GensDuVoyage:
+                    return new[] { Grade.Membre, Grade.Associe, Grade.LieutenantGang, Grade.BrasDroit, Grade.Patron };
+                default:
+                    return new[] { Grade.Citoyen };
+            }
+        }
+
+        private static bool EstGradeAutorisePourEquipe(Equipe equipe, Grade grade)
+        {
+            foreach (Grade valide in GradesDequipe(equipe))
+                if (valide == grade) return true;
+
+            return false;
+        }
+
+        // METADONNEES LABFUSION
 
         private static bool EcrireMetadataJoueur(
-            object joueur,
-            string cle,
-            string valeur)
+            object joueur, string cle, string valeur)
         {
             try
             {
-                PropertyInfo metadataProperty =
-                    joueur.GetType().GetProperty("Metadata");
+                object playerMetadata = joueur.GetType()
+                    .GetProperty("Metadata")?.GetValue(joueur);
 
-                object playerMetadata = metadataProperty?.GetValue(joueur);
-
-                object networkMetadata = playerMetadata?
-                    .GetType().GetProperty("Metadata")?
-                    .GetValue(playerMetadata);
+                object networkMetadata = playerMetadata?.GetType()
+                    .GetProperty("Metadata")?.GetValue(playerMetadata);
 
                 return AppelerTrySet(networkMetadata, cle, valeur);
             }
             catch (Exception ex)
             {
-                MelonLogger.Error(
-                    "[Fusion DarkRP] Ecriture metadata impossible : " + ex.Message
-                );
+                MelonLogger.Error("[Fusion DarkRP] Metadata joueur : " + ex.Message);
                 return false;
             }
         }
 
-        private static bool EcrireMetadataLocale(
-            string cle,
-            string valeur)
+        private static bool EcrireMetadataLocale(string cle, string valeur)
         {
             try
             {
                 Assembly fusion = TrouverAssembly("LabFusion");
+                Type localPlayer = fusion?.GetType("LabFusion.Player.LocalPlayer");
 
-                Type localPlayer = fusion?.GetType(
-                    "LabFusion.Player.LocalPlayer"
-                );
+                object metadata = localPlayer?.GetProperty(
+                    "Metadata", BindingFlags.Public | BindingFlags.Static
+                )?.GetValue(null);
 
-                object metadata = localPlayer?
-                    .GetProperty("Metadata",
-                        BindingFlags.Public | BindingFlags.Static)?
-                    .GetValue(null);
-
-                object networkMetadata = metadata?
-                    .GetType().GetProperty("Metadata")?
-                    .GetValue(metadata);
+                object networkMetadata = metadata?.GetType()
+                    .GetProperty("Metadata")?.GetValue(metadata);
 
                 return AppelerTrySet(networkMetadata, cle, valeur);
             }
             catch (Exception ex)
             {
-                MelonLogger.Error(
-                    "[Fusion DarkRP] Metadata locale impossible : " + ex.Message
-                );
+                MelonLogger.Error("[Fusion DarkRP] Metadata locale : " + ex.Message);
                 return false;
             }
         }
 
         private static bool AppelerTrySet(
-            object metadata,
-            string cle,
-            string valeur)
+            object metadata, string cle, string valeur)
         {
-            if (metadata == null)
-                return false;
+            if (metadata == null) return false;
 
             MethodInfo method = metadata.GetType().GetMethod(
                 "TrySetMetadata",
-                new Type[] { typeof(string), typeof(string) }
+                new[] { typeof(string), typeof(string) }
             );
 
-            if (method == null)
-            {
-                MelonLogger.Warning(
-                    "[Fusion DarkRP] TrySetMetadata introuvable."
-                );
-                return false;
-            }
+            if (method == null) return false;
 
-            object result = method.Invoke(
+            object resultat = method.Invoke(
                 metadata, new object[] { cle, valeur }
             );
 
-            return result is bool && (bool)result;
+            return resultat is bool && (bool)resultat;
         }
 
-        // --------------------------------------------------
-        // CHANGEMENT DE POSTE
-        // --------------------------------------------------
-
-        private static void Ajouter(
-            MethodInfo method,
-            object page,
-            string label,
-            Equipe equipe,
-            Grade grade,
-            object couleur)
-        {
-            Fonction(method, page, label, couleur, () =>
-            {
-                if (grade == Grade.Maire ||
-                    grade == Grade.ChefPolice ||
-                    grade == Grade.MedecinChef ||
-                    grade == Grade.ChefEboueurs ||
-                    grade == Grade.DirecteurBanque ||
-                    grade == Grade.GerantEpicerie ||
-                    grade == Grade.Patron)
-                {
-                    MelonLogger.Warning(
-                        "[Fusion DarkRP] Ce grade doit etre attribue par l'hote."
-                    );
-                    return;
-                }
-
-                ChangerMonPoste(equipe, grade);
-            });
-        }
-
-        private static void AjouterNomination(
-            MethodInfo method,
-            object page,
-            string label,
-            Equipe equipe,
-            Grade grade,
-            object couleur)
-        {
-            Fonction(method, page, label, couleur, () =>
-            {
-                if (!EstHote())
-                {
-                    MelonLogger.Warning(
-                        "[Fusion DarkRP] Nomination reservee a l'hote."
-                    );
-                    return;
-                }
-
-                ChangerMonPoste(equipe, grade);
-            });
-        }
-
-        private static void ChangerMonPoste(
-            Equipe equipe,
-            Grade grade)
+        private static void ChangerMonPoste(Equipe equipe, Grade grade)
         {
             if (!EcrireMetadataLocale(TEAM_KEY, equipe.ToString()))
+            {
+                MelonLogger.Warning("[Fusion DarkRP] Impossible de changer l'equipe.");
                 return;
+            }
 
             if (!EcrireMetadataLocale(GRADE_KEY, grade.ToString()))
+            {
+                MelonLogger.Warning("[Fusion DarkRP] Impossible de changer le grade.");
                 return;
+            }
 
             MelonLogger.Msg(
-                "[Fusion DarkRP] Poste synchronise : " +
-                equipe + " / " + grade
+                "[Fusion DarkRP] Poste mis a jour : " +
+                NomEquipe(equipe) + " / " + NomGrade(grade)
             );
         }
 
-        // --------------------------------------------------
-        // AFFICHAGE DU STATUT
-        // --------------------------------------------------
+        // STATUT DU JOUEUR
 
         private static void AfficherMonStatut()
         {
             try
             {
                 Assembly fusion = TrouverAssembly("LabFusion");
+                Type localPlayer = fusion?.GetType("LabFusion.Player.LocalPlayer");
 
-                Type localPlayer = fusion?.GetType(
-                    "LabFusion.Player.LocalPlayer"
-                );
+                object metadata = localPlayer?.GetProperty(
+                    "Metadata", BindingFlags.Public | BindingFlags.Static
+                )?.GetValue(null);
 
-                object metadata = localPlayer?
-                    .GetProperty("Metadata",
-                        BindingFlags.Public | BindingFlags.Static)?
-                    .GetValue(null);
-
-                object networkMetadata = metadata?
-                    .GetType().GetProperty("Metadata")?
-                    .GetValue(metadata);
+                object networkMetadata = metadata?.GetType()
+                    .GetProperty("Metadata")?.GetValue(metadata);
 
                 string equipe = LireMetadata(networkMetadata, TEAM_KEY);
                 string grade = LireMetadata(networkMetadata, GRADE_KEY);
 
-                MelonLogger.Msg(
-                    "[Fusion DarkRP] Mon equipe : " +
-                    (string.IsNullOrEmpty(equipe) ? "Citoyen" : equipe)
-                );
+                MelonLogger.Msg("[Fusion DarkRP] Equipe : " +
+                    (string.IsNullOrEmpty(equipe) ? "Citoyen" : equipe));
 
-                MelonLogger.Msg(
-                    "[Fusion DarkRP] Mon grade : " +
-                    (string.IsNullOrEmpty(grade) ? "Citoyen" : grade)
-                );
+                MelonLogger.Msg("[Fusion DarkRP] Grade : " +
+                    (string.IsNullOrEmpty(grade) ? "Citoyen" : grade));
             }
             catch (Exception ex)
             {
-                MelonLogger.Error(
-                    "[Fusion DarkRP] Lecture statut impossible : " + ex.Message
-                );
+                MelonLogger.Error("[Fusion DarkRP] Lecture statut : " + ex.Message);
             }
         }
 
-        private static string LireMetadata(
-            object metadata,
-            string cle)
+        private static string LireMetadata(object metadata, string cle)
         {
-            if (metadata == null)
-                return null;
+            if (metadata == null) return null;
 
             MethodInfo method = metadata.GetType().GetMethod(
-                "GetMetadata",
-                new Type[] { typeof(string) }
+                "GetMetadata", new[] { typeof(string) }
             );
 
             return method?.Invoke(metadata, new object[] { cle }) as string;
+        }
+
+        // OUTILS
+
+        private static Assembly TrouverAssembly(string nom)
+        {
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+                if (assembly.GetName().Name == nom)
+                    return assembly;
+
+            return null;
+        }
+
+        private static object Couleur(Type type, string nom)
+        {
+            return type.GetProperty(
+                nom, BindingFlags.Public | BindingFlags.Static
+            )?.GetValue(null);
+        }
+
+        private static object Page(
+            MethodInfo method, object parent, string nom, object couleur)
+        {
+            return method.Invoke(
+                parent, new object[] { nom, couleur, 0, true }
+            );
+        }
+
+        private static void Fonction(
+            MethodInfo method, object page, string label,
+            object couleur, Action action)
+        {
+            if (page == null) return;
+
+            method.Invoke(page, new object[] { label, couleur, action });
+        }
+
+        private static bool EstHote()
+        {
+            try
+            {
+                Assembly fusion = TrouverAssembly("LabFusion");
+                Type network = fusion?.GetType("LabFusion.Network.NetworkInfo");
+
+                PropertyInfo property = network?.GetProperty(
+                    "IsHost", BindingFlags.Public | BindingFlags.Static
+                );
+
+                return property != null && (bool)property.GetValue(null);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool LireBool(object objet, string nom)
+        {
+            try
+            {
+                object valeur = objet.GetType().GetProperty(nom)?.GetValue(objet);
+                return valeur is bool && (bool)valeur;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static string LireNomJoueur(object joueur)
@@ -812,24 +662,15 @@ namespace FusionDarkRP
                 object metadata = joueur.GetType()
                     .GetProperty("Metadata")?.GetValue(joueur);
 
-                object nickname = metadata?.GetType()
-                    .GetProperty("Nickname")?.GetValue(metadata);
-
-                string nom = nickname?.GetType()
-                    .GetMethod("GetValueOrEmpty")?
-                    .Invoke(nickname, null) as string;
-
-                if (!string.IsNullOrEmpty(nom))
-                    return nom;
-
                 object username = metadata?.GetType()
                     .GetProperty("Username")?.GetValue(metadata);
 
-                nom = username?.GetType()
-                    .GetMethod("GetValueOrEmpty")?
-                    .Invoke(username, null) as string;
+                string nom = username?.GetType()
+                    .GetMethod("GetValue")?.Invoke(username, null) as string;
 
-                return string.IsNullOrEmpty(nom) ? "Joueur" : nom;
+                if (!string.IsNullOrEmpty(nom)) return nom;
+
+                return "Joueur";
             }
             catch
             {
@@ -837,84 +678,50 @@ namespace FusionDarkRP
             }
         }
 
-        // --------------------------------------------------
-        // OUTILS
-        // --------------------------------------------------
-
-        private static Assembly TrouverAssembly(string nom)
+        private static string NomEquipe(Equipe equipe)
         {
-            foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+            switch (equipe)
             {
-                if (asm.GetName().Name == nom)
-                    return asm;
-            }
-
-            return null;
-        }
-
-        private static object Couleur(Type type, string nom)
-        {
-            return type.GetProperty(
-                nom,
-                BindingFlags.Public | BindingFlags.Static
-            )?.GetValue(null);
-        }
-
-        private static object Page(
-            MethodInfo method,
-            object parent,
-            string nom,
-            object couleur)
-        {
-            return method.Invoke(
-                parent,
-                new object[] { nom, couleur, 0, true }
-            );
-        }
-
-        private static void Fonction(
-            MethodInfo method,
-            object page,
-            string label,
-            object couleur,
-            Action action)
-        {
-            if (page == null)
-                return;
-
-            method.Invoke(
-                page,
-                new object[] { label, couleur, action }
-            );
-        }
-
-        private static bool EstHote()
-        {
-            try
-            {
-                Assembly fusion = TrouverAssembly("LabFusion");
-
-                Type network = fusion?.GetType(
-                    "LabFusion.Network.NetworkInfo"
-                );
-
-                PropertyInfo property = network?.GetProperty(
-                    "IsHost",
-                    BindingFlags.Public | BindingFlags.Static
-                );
-
-                return property != null &&
-                    (bool)property.GetValue(null);
-            }
-            catch
-            {
-                return false;
+                case Equipe.Citoyen: return "Citoyen";
+                case Equipe.Eboueurs: return "Eboueurs";
+                case Equipe.Banque: return "Banque";
+                case Equipe.Mairie: return "Mairie";
+                case Equipe.Epicerie: return "Epicerie";
+                case Equipe.Police: return "Police";
+                case Equipe.Medecins: return "Medecins";
+                case Equipe.Marseillais: return "Les Marseillais";
+                case Equipe.Parisiens: return "Les Parisiens";
+                case Equipe.GensDuVoyage: return "Les Gens du Voyage";
+                default: return equipe.ToString();
             }
         }
 
         private static string NomGrade(Grade grade)
         {
-            return grade.ToString();
+            switch (grade)
+            {
+                case Grade.ResponsableCollecte: return "Responsable collecte";
+                case Grade.ChefEboueurs: return "Chef des eboueurs";
+                case Grade.ConseillerBancaire: return "Conseiller bancaire";
+                case Grade.DirecteurAdjointBanque: return "Directeur adjoint";
+                case Grade.DirecteurBanque: return "Directeur de banque";
+                case Grade.ConseillerMunicipal: return "Conseiller municipal";
+                case Grade.SecretaireMairie: return "Secretaire mairie";
+                case Grade.AdjointMaire: return "Adjoint au maire";
+                case Grade.Maire: return "Maire";
+                case Grade.ResponsableRayon: return "Responsable rayon";
+                case Grade.GerantAdjoint: return "Gerant adjoint";
+                case Grade.GerantEpicerie: return "Gerant epicerie";
+                case Grade.LieutenantPolice: return "Lieutenant";
+                case Grade.CommissaireAdjoint: return "Commissaire adjoint";
+                case Grade.ChefPolice: return "Chef de police";
+                case Grade.MedecinAdjoint: return "Medecin adjoint";
+                case Grade.MedecinChef: return "Medecin-chef";
+                case Grade.LieutenantGang: return "Lieutenant";
+                case Grade.BrasDroit: return "Bras droit";
+                case Grade.Patron: return "Patron";
+                default: return grade.ToString();
+            }
         }
     }
 }
