@@ -1,3 +1,4 @@
+
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
@@ -21,10 +22,10 @@
       <HintPath>Libs/Il2CppInterop.Runtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
+
+    <Reference Include="LabFusion">
+      <HintPath>Libs/LabFusion.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 </Project>
-
-<Reference Include="LabFusion">
-  <HintPath>Libs/LabFusion.dll</HintPath>
-  <Private>false</Private>
-</Reference>
