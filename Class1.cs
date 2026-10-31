@@ -79,8 +79,9 @@ namespace FusionDarkRP
                 object metadata = local.GetType().GetProperty("Metadata").GetValue(local);
                 object data = metadata.GetType().GetProperty("Metadata").GetValue(metadata);
 
-                string equipe = LireMetadata(data, TEAM_KEY);
-                string grade = LireMetadata(data, GRADE_KEY);
+                // CORRECTION : le nom de la méthode est ReadMetadata.
+                string equipe = ReadMetadata(data, TEAM_KEY);
+                string grade = ReadMetadata(data, GRADE_KEY);
 
                 if (string.IsNullOrEmpty(equipe) || string.IsNullOrEmpty(grade))
                     DarkRPNetwork.Request(id, 0, 0);
