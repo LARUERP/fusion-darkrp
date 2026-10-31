@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -315,8 +314,6 @@ namespace FusionDarkRP
                         );
                     }
 
-                    // Le bouton existe sur chaque fiche.
-                    // Les droits sont controles au moment du clic.
                     AddFunction(
                         createFunction,
                         playerPage,
