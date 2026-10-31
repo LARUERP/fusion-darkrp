@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -238,6 +237,37 @@ namespace FusionDarkRP
                    equipe == Equipe.Epicerie;
         }
 
+        private static void ChangerMonPoste(Equipe equipe, Grade grade)
+        {
+            if (!EstPostePublic(equipe))
+            {
+                MelonLogger.Warning("[Fusion DarkRP] Poste non public.");
+                return;
+            }
+
+            bool equipeOk = EcrireMetadataLocale(
+                TEAM_KEY, equipe.ToString()
+            );
+
+            bool gradeOk = EcrireMetadataLocale(
+                GRADE_KEY, grade.ToString()
+            );
+
+            if (equipeOk && gradeOk)
+            {
+                MelonLogger.Msg(
+                    "[Fusion DarkRP] Poste mis a jour : " +
+                    NomEquipe(equipe) + " / " + NomGrade(grade)
+                );
+            }
+            else
+            {
+                MelonLogger.Warning(
+                    "[Fusion DarkRP] Impossible de modifier ton poste."
+                );
+            }
+        }
+
         private static void AjouterInfo(
             MethodInfo method, object page, string label, object couleur)
         {
@@ -275,7 +305,6 @@ namespace FusionDarkRP
                 Assembly fusion = TrouverAssembly("LabFusion");
                 Type manager = fusion?.GetType("LabFusion.Player.PlayerIDManager");
 
-                // IMPORTANT : PlayerIDs est un CHAMP statique, pas une propriete.
                 FieldInfo idsField = manager?.GetField(
                     "PlayerIDs", BindingFlags.Public | BindingFlags.Static
                 );
@@ -519,11 +548,9 @@ namespace FusionDarkRP
             {
                 if (joueur == null) return false;
 
-                // Si la cible est l'hote lui-meme, passer par LocalPlayer.
                 if (LireBool(joueur, "IsMe"))
                     return EcrireMetadataLocale(cle, valeur);
 
-                // Les changements sur un autre joueur sont envoyes par l'hote.
                 if (!EstHote())
                     return false;
 
@@ -555,9 +582,7 @@ namespace FusionDarkRP
             }
             catch (Exception ex)
             {
-                MelonLogger.Error(
-                    "[Fusion DarkRP] Ecriture metadata : " + ex
-                );
+                MelonLogger.Error("[Fusion DarkRP] Ecriture metadata : " + ex);
                 return false;
             }
         }
@@ -595,9 +620,7 @@ namespace FusionDarkRP
             }
             catch (Exception ex)
             {
-                MelonLogger.Error(
-                    "[Fusion DarkRP] Metadata locale : " + ex
-                );
+                MelonLogger.Error("[Fusion DarkRP] Metadata locale : " + ex);
                 return false;
             }
         }
@@ -633,9 +656,7 @@ namespace FusionDarkRP
             }
             catch (Exception ex)
             {
-                MelonLogger.Error(
-                    "[Fusion DarkRP] Lecture statut : " + ex
-                );
+                MelonLogger.Error("[Fusion DarkRP] Lecture statut : " + ex);
             }
         }
 
