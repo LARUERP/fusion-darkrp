@@ -23,3 +23,8 @@
     </Reference>
   </ItemGroup>
 </Project>
+
+<Reference Include="LabFusion">
+  <HintPath>Libs/LabFusion.dll</HintPath>
+  <Private>false</Private>
+</Reference>
