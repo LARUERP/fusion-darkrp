@@ -82,7 +82,10 @@ namespace FusionDarkRP
                     return;
                 }
 
+                // Une seule demande initiale : ne pas spammer le serveur
+                // si la reponse metadata tarde a arriver.
                 DarkRPNetwork.Request(id, 0, 0);
+                demandeInitialeEnvoyee = true;
             }
             catch (Exception ex)
             {
@@ -302,7 +305,9 @@ namespace FusionDarkRP
                 AddFunction(
                     createFunction, character,
                     "Consulter mon metier et mon grade", white,
-                    ShowStatus
+                    () => ShowStatus(
+                        createPage, createFunction, character, white, green
+                    )
                 );
 
                 AddFunction(
@@ -376,16 +381,20 @@ namespace FusionDarkRP
                 string gradeName = ranks[i];
                 string displayName = DisplayGrade(gradeName, team);
 
-                AddFunction(
+                AddInfo(
                     createFunction,
                     page,
-                    displayName,
-                    white,
-                    () => MelonLogger.Msg(
-                        "[Fusion DarkRP] Grade : " + displayName
-                    )
+                    (i + 1) + ". " + displayName,
+                    white
                 );
             }
+
+            AddInfo(
+                createFunction,
+                page,
+                "Pour recruter ou promouvoir : Joueurs connectes > joueur > gestion",
+                white
+            );
         }
 
         private static void RefreshPlayers(
@@ -448,6 +457,9 @@ namespace FusionDarkRP
                     byte id = Convert.ToByte(
                         player.GetType().GetProperty("SmallID").GetValue(player)
                     );
+
+                    if (pagesJoueurs.ContainsKey(id))
+                        continue;
 
                     bool isMe = ReadBool(player, "IsMe");
 
@@ -801,19 +813,73 @@ namespace FusionDarkRP
             return ReadMetadata(data, GRADE_KEY);
         }
 
-        private static void ShowStatus()
+        private static void ShowStatus(
+            MethodInfo createPage,
+            MethodInfo createFunction,
+            object characterPage,
+            object white,
+            object green)
         {
-            string team = MyTeam();
-            string grade = MyGrade();
+            try
+            {
+                // Lecture au moment du clic pour afficher les dernieres
+                // metadonnees recues du serveur.
+                string team = MyTeam();
+                string grade = MyGrade();
+                byte teamId = TeamId(team);
 
-            byte teamId = TeamId(team);
+                if (string.IsNullOrEmpty(team))
+                    team = "Citoyen";
+                if (string.IsNullOrEmpty(grade))
+                    grade = "Citoyen";
 
-            MelonLogger.Msg(
-                "[Fusion DarkRP] METIER : " +
-                TeamDisplay(teamId) +
-                " | GRADE : " +
-                DisplayGrade(grade, teamId)
-            );
+                object statusPage = NewPage(
+                    createPage,
+                    characterPage,
+                    "Mon statut actuel",
+                    green
+                );
+
+                AddInfo(
+                    createFunction,
+                    statusPage,
+                    "METIER : " + TeamDisplay(teamId),
+                    white
+                );
+
+                AddInfo(
+                    createFunction,
+                    statusPage,
+                    "GRADE : " + DisplayGrade(grade, teamId),
+                    white
+                );
+
+                AddInfo(
+                    createFunction,
+                    statusPage,
+                    "Equipe technique : " + team,
+                    white
+                );
+
+                AddInfo(
+                    createFunction,
+                    statusPage,
+                    "Grade technique : " + grade,
+                    white
+                );
+
+                MelonLogger.Msg(
+                    "[Fusion DarkRP] Statut affiche : " +
+                    TeamDisplay(teamId) + " / " +
+                    DisplayGrade(grade, teamId)
+                );
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Error(
+                    "[Fusion DarkRP] Affichage du statut : " + ex
+                );
+            }
         }
 
         private static void AddInfo(
