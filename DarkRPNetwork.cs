@@ -65,7 +65,7 @@ namespace FusionDarkRP
                     return;
 
                 string team = DarkRPNetwork.TeamName(data.Team);
-                string grade = DarkRPNetwork.GradeName(data.Grade);
+                string grade = DarkRPNetwork.DisplayGrade(data.Team, data.Grade);
 
                 if (team == null || grade == null)
                     return;
@@ -95,7 +95,6 @@ namespace FusionDarkRP
 
         protected override bool OnPreRelayMessage(ReceivedMessage received)
         {
-            // Sender n'est pas encore renseigne pendant cette etape.
             return received.Bytes != null && received.Bytes.Length == 3;
         }
 
@@ -133,14 +132,12 @@ namespace FusionDarkRP
                 if (team == null || grade == null)
                     return;
 
-                // Mise a jour immediate des donnees connues de l'hote.
                 target.Metadata.Metadata.ForceSetLocalMetadata(
                     DarkRPNetwork.TeamKey, team);
 
                 target.Metadata.Metadata.ForceSetLocalMetadata(
                     DarkRPNetwork.GradeKey, grade);
 
-                // Diffusion des deux metadonnees aux clients.
                 PlayerSender.SendPlayerMetadataResponse(
                     target.SmallID,
                     DarkRPNetwork.TeamKey,
@@ -151,17 +148,15 @@ namespace FusionDarkRP
                     DarkRPNetwork.GradeKey,
                     grade);
 
-                // Notification de l'hote si la cible est lui-meme.
                 PlayerID local = PlayerIDManager.LocalID;
 
                 if (local != null && local.IsValid &&
                     local.SmallID == target.SmallID)
                 {
-                    DarkRPNetwork.ShowNotification(team, grade);
+                    DarkRPNetwork.ShowNotification(data.Team, data.Grade);
                 }
                 else
                 {
-                    // Les clients filtrent la notification par TargetId.
                     MessageRelay.RelayModule<
                         DarkRPNotificationHandler,
                         DarkRPNotificationData>(
@@ -220,7 +215,7 @@ namespace FusionDarkRP
                 Grade = grade
             };
 
-            MelonLoader.MelonLogger.Msg(
+            MelonLogger.Msg(
                 "[Fusion DarkRP] Demande : cible " + targetId +
                 ", equipe " + team + ", grade " + grade);
 
@@ -231,15 +226,15 @@ namespace FusionDarkRP
                 CommonMessageRoutes.ReliableToServer);
         }
 
-        public static void ShowNotification(string team, string grade)
+        public static void ShowNotification(byte team, byte grade)
         {
             try
             {
                 Notifier.Send(new Notification
                 {
                     Title = "Fusion DarkRP",
-                    Message = "Ton métier : " + team +
-                              " | Grade : " + grade,
+                    Message = "Ton métier : " + TeamName(team) +
+                              " | Grade : " + DisplayGrade(team, grade),
                     Type = NotificationType.SUCCESS,
                     PopupLength = 4f,
                     SaveToMenu = true
@@ -247,7 +242,7 @@ namespace FusionDarkRP
             }
             catch (Exception ex)
             {
-                MelonLoader.MelonLogger.Warning(
+                MelonLogger.Warning(
                     "[Fusion DarkRP] Notification impossible : " + ex.Message);
             }
         }
@@ -269,11 +264,9 @@ namespace FusionDarkRP
                 Rank(requestedTeam, requestedGrade) < 0)
                 return false;
 
-            // L'hote possede tous les droits.
             if (sender.IsHost)
                 return true;
 
-            // Un joueur peut choisir les metiers publics pour lui-meme.
             if (sender.SmallID == target.SmallID)
             {
                 return (team == 0 && grade == 0) ||
@@ -347,10 +340,31 @@ namespace FusionDarkRP
         {
             switch (team)
             {
+                case "Eboueurs":
+                    return new[] {
+                        "Eboueur", "ResponsableCollecte", "ChefEboueurs",
+                        "EboueurResponsableSecteur",
+                        "EboueurDirecteurProprete"
+                    };
+
+                case "Banque":
+                    return new[] {
+                        "Guichetier", "ConseillerBancaire",
+                        "DirecteurAdjointBanque", "DirecteurBanque",
+                        "DirecteurAgence"
+                    };
+
                 case "Mairie":
                     return new[] {
                         "ConseillerMunicipal", "SecretaireMairie",
-                        "AdjointMaire", "Maire"
+                        "AdjointMaire", "PremierAdjointMairie", "Maire"
+                    };
+
+                case "Epicerie":
+                    return new[] {
+                        "Vendeur", "ResponsableRayon",
+                        "GerantAdjoint", "GerantEpicerie",
+                        "GerantEpicerieTop"
                     };
 
                 case "Police":
@@ -361,25 +375,8 @@ namespace FusionDarkRP
 
                 case "Medecins":
                     return new[] {
-                        "Infirmier", "Chirurgien",
-                        "MedecinAdjoint", "MedecinChef"
-                    };
-
-                case "Eboueurs":
-                    return new[] {
-                        "Eboueur", "ResponsableCollecte", "ChefEboueurs"
-                    };
-
-                case "Banque":
-                    return new[] {
-                        "Guichetier", "ConseillerBancaire",
-                        "DirecteurAdjointBanque", "DirecteurBanque"
-                    };
-
-                case "Epicerie":
-                    return new[] {
-                        "Vendeur", "ResponsableRayon",
-                        "GerantAdjoint", "GerantEpicerie"
+                        "MedecinAmbulancier", "Infirmier",
+                        "MedecinAdjoint", "Chirurgien", "MedecinChef"
                     };
 
                 case "Marseillais":
@@ -435,10 +432,128 @@ namespace FusionDarkRP
                 "CommissaireAdjoint", "ChefPolice", "Infirmier",
                 "Chirurgien", "MedecinAdjoint", "MedecinChef",
                 "Membre", "Associe", "LieutenantGang",
-                "BrasDroit", "Patron"
+                "BrasDroit", "Patron",
+                "EboueurResponsableSecteur",
+                "EboueurDirecteurProprete",
+                "DirecteurAgence",
+                "PremierAdjointMairie",
+                "GerantEpicerieTop",
+                "MedecinAmbulancier"
             };
 
             return value < names.Length ? names[value] : null;
+        }
+
+        public static string DisplayGrade(byte team, byte grade)
+        {
+            string internalName = GradeName(grade);
+
+            if (internalName == null)
+                return null;
+
+            switch (team)
+            {
+                case 1:
+                    switch (internalName)
+                    {
+                        case "Eboueur": return "Agent de collecte";
+                        case "ResponsableCollecte": return "Eboueur confirme";
+                        case "ChefEboueurs": return "Chef d'equipe";
+                        case "EboueurResponsableSecteur": return "Responsable de secteur";
+                        case "EboueurDirecteurProprete": return "Directeur de la proprete";
+                    }
+                    break;
+
+                case 2:
+                    switch (internalName)
+                    {
+                        case "Guichetier": return "Agent d'accueil";
+                        case "ConseillerBancaire": return "Conseiller bancaire";
+                        case "DirecteurAdjointBanque": return "Gestionnaire de comptes";
+                        case "DirecteurBanque": return "Directeur adjoint";
+                        case "DirecteurAgence": return "Directeur d'agence";
+                    }
+                    break;
+
+                case 3:
+                    switch (internalName)
+                    {
+                        case "ConseillerMunicipal": return "Conseiller municipal";
+                        case "SecretaireMairie": return "Secretaire general";
+                        case "AdjointMaire": return "Adjoint au maire";
+                        case "PremierAdjointMairie": return "Premier adjoint";
+                        case "Maire": return "Maire";
+                    }
+                    break;
+
+                case 4:
+                    switch (internalName)
+                    {
+                        case "Vendeur": return "Employe polyvalent";
+                        case "ResponsableRayon": return "Vendeur";
+                        case "GerantAdjoint": return "Responsable des rayons";
+                        case "GerantEpicerie": return "Gerant adjoint";
+                        case "GerantEpicerieTop": return "Gerant";
+                    }
+                    break;
+
+                case 5:
+                    switch (internalName)
+                    {
+                        case "Policier": return "Gardien de la paix";
+                        case "Sergent": return "Brigadier";
+                        case "LieutenantPolice": return "Lieutenant";
+                        case "CommissaireAdjoint": return "Commissaire";
+                        case "ChefPolice": return "Commissaire divisionnaire";
+                    }
+                    break;
+
+                case 6:
+                    switch (internalName)
+                    {
+                        case "MedecinAmbulancier": return "Ambulancier";
+                        case "Infirmier": return "Infirmier";
+                        case "MedecinAdjoint": return "Medecin";
+                        case "Chirurgien": return "Chirurgien";
+                        case "MedecinChef": return "Chef de service";
+                    }
+                    break;
+
+                case 7:
+                    switch (grade)
+                    {
+                        case 25: return "Cagole";
+                        case 26: return "Guetteur";
+                        case 27: return "Vendeur";
+                        case 28: return "Shooter";
+                        case 29: return "Chef de reseau";
+                    }
+                    break;
+
+                case 8:
+                    switch (grade)
+                    {
+                        case 25: return "Petit nouveau";
+                        case 26: return "Guetteur";
+                        case 27: return "Charbonneur";
+                        case 28: return "Bras droit";
+                        case 29: return "Baron du quartier";
+                    }
+                    break;
+
+                case 9:
+                    switch (grade)
+                    {
+                        case 25: return "Nouveau de la famille";
+                        case 26: return "Voyageur";
+                        case 27: return "Ancien";
+                        case 28: return "Chef de caravane";
+                        case 29: return "Patriarche";
+                    }
+                    break;
+            }
+
+            return internalName;
         }
     }
 }
