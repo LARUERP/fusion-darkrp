@@ -1,4 +1,3 @@
-
 using System;
 
 namespace FusionDarkRP
@@ -119,6 +118,14 @@ namespace FusionDarkRP
                     return job;
 
             return null;
+        }
+
+        // Conversion du nom de faction en identifiant.
+        // Retourne 255 si le nom ne correspond à aucune faction.
+        public static byte TeamId(string teamName)
+        {
+            DarkRPJob job = GetJob(teamName);
+            return job == null ? (byte)255 : job.Id;
         }
 
         public static string TeamName(byte id)
