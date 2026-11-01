@@ -1,5 +1,5 @@
-
 using System;
+using MelonLoader;
 using LabFusion.Network;
 using LabFusion.Network.Serialization;
 using LabFusion.Player;
@@ -82,7 +82,7 @@ namespace FusionDarkRP
             }
             catch (Exception ex)
             {
-                MelonLoader.MelonLogger.Error(
+                MelonLogger.Error(
                     "[Fusion DarkRP] Erreur notification : " + ex);
             }
         }
@@ -121,7 +121,7 @@ namespace FusionDarkRP
                 if (!DarkRPNetwork.CanApply(
                     sender, target, data.Team, data.Grade))
                 {
-                    MelonLoader.MelonLogger.Warning(
+                    MelonLogger.Warning(
                         "[Fusion DarkRP] Attribution refusee : permissions insuffisantes.");
                     return;
                 }
@@ -169,13 +169,13 @@ namespace FusionDarkRP
                         CommonMessageRoutes.ReliableToClients);
                 }
 
-                MelonLoader.MelonLogger.Msg(
+                MelonLogger.Msg(
                     "[Fusion DarkRP] Attribution appliquee : joueur ID " +
                     target.SmallID + " -> " + team + " / " + grade);
             }
             catch (Exception ex)
             {
-                MelonLoader.MelonLogger.Error(
+                MelonLogger.Error(
                     "[Fusion DarkRP] Erreur traitement demande : " + ex);
             }
         }
@@ -203,7 +203,7 @@ namespace FusionDarkRP
         {
             if (!NetworkInfo.HasServer)
             {
-                MelonLoader.MelonLogger.Warning(
+                MelonLogger.Warning(
                     "[Fusion DarkRP] Aucune connexion serveur.");
                 return;
             }
