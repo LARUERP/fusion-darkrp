@@ -3,6 +3,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using LabFusion.Player;
+using LabFusion.Utilities;
 using MelonLoader;
 using UnityEngine;
 
@@ -20,6 +22,10 @@ namespace FusionDarkRP
         private static bool demandeInitialeEnvoyee;
         private static DateTime debutAttenteMetadonnees = DateTime.MinValue;
         private static DateTime prochaineTentative;
+        private static DateTime prochainControleListe = DateTime.MinValue;
+        private static string derniereSignatureJoueurs = string.Empty;
+        private static bool listeJoueursDirty = true;
+        private static Action actualiserListeJoueurs;
 
         private static readonly Dictionary<byte, object> pagesJoueurs =
             new Dictionary<byte, object>();
@@ -32,7 +38,17 @@ namespace FusionDarkRP
             try
             {
                 DarkRPNetwork.Register();
-                MelonLogger.Msg("[Fusion DarkRP] Reseau initialise.");
+
+                // Les hooks Fusion signalent immediatement les arrivees,
+                // departs et changements de session. L'UI est rafraichie
+                // depuis OnUpdate pour rester sur le thread Unity.
+                MultiplayerHooking.OnPlayerJoined += OnFusionPlayerJoined;
+                MultiplayerHooking.OnPlayerLeft += OnFusionPlayerLeft;
+                MultiplayerHooking.OnJoinedServer += OnFusionSessionChanged;
+                MultiplayerHooking.OnStartedServer += OnFusionSessionChanged;
+                MultiplayerHooking.OnDisconnected += OnFusionDisconnected;
+
+                MelonLogger.Msg("[Fusion DarkRP] Reseau et synchronisation initialises.");
             }
             catch (Exception ex)
             {
@@ -42,25 +58,120 @@ namespace FusionDarkRP
 
         public override void OnUpdate()
         {
-            if (DateTime.UtcNow < prochaineTentative)
-                return;
+            DateTime maintenant = DateTime.UtcNow;
 
-            prochaineTentative = DateTime.UtcNow.AddSeconds(3);
+            // L'initialisation du metier reste limitee a une tentative toutes
+            // les 3 secondes, mais ne bloque plus les autres mises a jour.
+            if (maintenant >= prochaineTentative)
+            {
+                prochaineTentative = maintenant.AddSeconds(3);
 
-            if (!DarkRPNetwork.HasServer)
-            {
-                // Une nouvelle session Fusion doit pouvoir refaire
-                // l'initialisation, meme apres une deconnexion.
-                demandeInitialeEnvoyee = false;
-                debutAttenteMetadonnees = DateTime.MinValue;
-            }
-            else if (!demandeInitialeEnvoyee)
-            {
-                InitialiserCitoyen();
+                if (!DarkRPNetwork.HasServer)
+                {
+                    demandeInitialeEnvoyee = false;
+                    debutAttenteMetadonnees = DateTime.MinValue;
+                }
+                else if (!demandeInitialeEnvoyee)
+                {
+                    InitialiserCitoyen();
+                }
             }
 
             if (!menuCree)
                 CreerMenu();
+
+            // Filet de securite : detecte aussi les changements de metier /
+            // grade qui ne declenchent pas un hook d'arrivee/depart.
+            if (maintenant >= prochainControleListe)
+            {
+                prochainControleListe = maintenant.AddMilliseconds(900);
+
+                string signature = ConstruireSignatureJoueurs();
+                if (!string.Equals(signature, derniereSignatureJoueurs,
+                    StringComparison.Ordinal))
+                {
+                    derniereSignatureJoueurs = signature;
+                    listeJoueursDirty = true;
+                }
+
+                if (listeJoueursDirty && actualiserListeJoueurs != null)
+                {
+                    listeJoueursDirty = false;
+                    actualiserListeJoueurs.Invoke();
+                }
+            }
+        }
+
+        private static void OnFusionPlayerJoined(PlayerID player)
+        {
+            listeJoueursDirty = true;
+        }
+
+        private static void OnFusionPlayerLeft(PlayerID player)
+        {
+            // Le joueur est marque comme parti par Fusion ; la reconstruction
+            // de la page retire donc aussi son ancienne entree.
+            listeJoueursDirty = true;
+        }
+
+        private static void OnFusionSessionChanged()
+        {
+            listeJoueursDirty = true;
+            derniereSignatureJoueurs = string.Empty;
+            demandeInitialeEnvoyee = false;
+            debutAttenteMetadonnees = DateTime.MinValue;
+        }
+
+        private static void OnFusionDisconnected()
+        {
+            listeJoueursDirty = true;
+            derniereSignatureJoueurs = string.Empty;
+            demandeInitialeEnvoyee = false;
+            debutAttenteMetadonnees = DateTime.MinValue;
+        }
+
+        private static string ConstruireSignatureJoueurs()
+        {
+            try
+            {
+                if (!DarkRPNetwork.HasServer)
+                    return "NO_FUSION_SESSION";
+
+                Assembly fusion = TrouverAssembly("LabFusion");
+                Type manager = fusion?.GetType(
+                    "LabFusion.Player.PlayerIDManager");
+                FieldInfo field = manager?.GetField(
+                    "PlayerIDs", BindingFlags.Public | BindingFlags.Static);
+                IEnumerable joueurs = field?.GetValue(null) as IEnumerable;
+
+                if (joueurs == null)
+                    return "PLAYER_LIST_UNAVAILABLE";
+
+                List<string> entrees = new List<string>();
+                foreach (object joueur in joueurs)
+                {
+                    if (joueur == null || !ReadBool(joueur, "IsValid"))
+                        continue;
+
+                    object idValue = joueur.GetType().GetProperty("SmallID")
+                        ?.GetValue(joueur);
+                    if (idValue == null)
+                        continue;
+
+                    byte id = Convert.ToByte(idValue);
+                    entrees.Add(id + "|" + PlayerName(joueur, id) + "|" +
+                        PlayerTeam(joueur) + "|" + PlayerGrade(joueur));
+                }
+
+                entrees.Sort(StringComparer.Ordinal);
+                return string.Join(";", entrees.ToArray());
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning(
+                    "[Fusion DarkRP] Signature joueurs : " + ex.Message);
+                return "PLAYER_SIGNATURE_ERROR";
+            }
         }
 
         private static void InitialiserCitoyen()
@@ -322,13 +433,20 @@ namespace FusionDarkRP
                     "Gens du Voyage", 9, yellow, white
                 );
 
+                actualiserListeJoueurs = () => RefreshPlayers(
+                    createPage, createFunction, players,
+                    white, yellow, green, blue, red, cyan
+                );
+
                 AddFunction(
                     createFunction, players,
                     "Actualiser les joueurs", cyan,
-                    () => RefreshPlayers(
-                        createPage, createFunction, players,
-                        white, yellow, green, blue, red, cyan
-                    )
+                    () =>
+                    {
+                        listeJoueursDirty = true;
+                        if (actualiserListeJoueurs != null)
+                            actualiserListeJoueurs.Invoke();
+                    }
                 );
 
                 AddFunction(
@@ -459,6 +577,13 @@ namespace FusionDarkRP
                 pagesJoueurs.Clear();
                 pagesGestionOuvertes.Clear();
 
+                if (!DarkRPNetwork.HasServer)
+                {
+                    derniereSignatureJoueurs = "NO_FUSION_SESSION";
+                    listeJoueursDirty = false;
+                    return;
+                }
+
                 Assembly fusion = TrouverAssembly("LabFusion");
 
                 Type manager = fusion?.GetType(
@@ -572,6 +697,9 @@ namespace FusionDarkRP
 
                     pagesJoueurs[id] = playerPage;
                 }
+
+                derniereSignatureJoueurs = ConstruireSignatureJoueurs();
+                listeJoueursDirty = false;
 
                 MelonLogger.Msg(
                     "[Fusion DarkRP] Liste des joueurs actualisee."
