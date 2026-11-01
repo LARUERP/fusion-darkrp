@@ -9,10 +9,6 @@ using LabFusion.UI.Popups;
 
 namespace FusionDarkRP
 {
-    // ============================================================
-    // DONNEES RESEAU
-    // ============================================================
-
     public sealed class DarkRPRequestData : INetSerializable
     {
         public byte TargetId;
@@ -44,10 +40,6 @@ namespace FusionDarkRP
             serializer.SerializeValue(ref Grade);
         }
     }
-
-    // ============================================================
-    // NOTIFICATION PERSONNELLE
-    // ============================================================
 
     public sealed class DarkRPNotificationHandler : ModuleMessageHandler
     {
@@ -83,10 +75,6 @@ namespace FusionDarkRP
         }
     }
 
-    // ============================================================
-    // TRAITEMENT DES DEMANDES COTE SERVEUR
-    // ============================================================
-
     public sealed class DarkRPRequestHandler : ModuleMessageHandler
     {
         public override ExpectedReceiverType ExpectedReceiver =>
@@ -118,14 +106,12 @@ namespace FusionDarkRP
                     !sender.IsValid || !target.IsValid)
                     return;
 
-                // Vérification complète des droits et du grade.
                 if (!DarkRPNetwork.CanApply(
                     sender, target, data.Team, data.Grade))
                 {
                     MelonLogger.Warning(
                         "[Fusion DarkRP] Demande refusee : " +
                         "droits insuffisants ou attribution invalide.");
-
                     return;
                 }
 
@@ -136,29 +122,20 @@ namespace FusionDarkRP
                     string.IsNullOrEmpty(grade))
                     return;
 
-                // Enregistrement serveur des deux métadonnées.
                 target.Metadata.Metadata.ForceSetLocalMetadata(
                     DarkRPJobs.TeamKey, team);
 
                 target.Metadata.Metadata.ForceSetLocalMetadata(
                     DarkRPJobs.GradeKey, grade);
 
-                // Synchronisation des métadonnées auprès des clients.
                 PlayerSender.SendPlayerMetadataResponse(
-                    target.SmallID,
-                    DarkRPJobs.TeamKey,
-                    team);
+                    target.SmallID, DarkRPJobs.TeamKey, team);
 
                 PlayerSender.SendPlayerMetadataResponse(
-                    target.SmallID,
-                    DarkRPJobs.GradeKey,
-                    grade);
+                    target.SmallID, DarkRPJobs.GradeKey, grade);
 
-                // Seul le joueur concerné reçoit cette notification.
                 DarkRPNetwork.NotifyPlayer(
-                    target.SmallID,
-                    data.Team,
-                    data.Grade);
+                    target.SmallID, data.Team, data.Grade);
 
                 MelonLogger.Msg(
                     "[Fusion DarkRP] Attribution appliquee : ID " +
@@ -174,20 +151,12 @@ namespace FusionDarkRP
         }
     }
 
-    // ============================================================
-    // SYSTEME RESEAU DARKRP
-    // ============================================================
-
     public static class DarkRPNetwork
     {
         public const string TeamKey = "FusionDarkRP.Team";
         public const string GradeKey = "FusionDarkRP.Grade";
 
         private static bool registered;
-
-        // --------------------------------------------------------
-        // INITIALISATION
-        // --------------------------------------------------------
 
         public static void Register()
         {
@@ -208,14 +177,9 @@ namespace FusionDarkRP
             {
                 MelonLogger.Error(
                     "[Fusion DarkRP] Echec enregistrement reseau : " + ex);
-
                 throw;
             }
         }
-
-        // --------------------------------------------------------
-        // ENVOI D'UNE DEMANDE AU SERVEUR
-        // --------------------------------------------------------
 
         public static void Request(
             byte targetId,
@@ -264,10 +228,6 @@ namespace FusionDarkRP
             }
         }
 
-        // --------------------------------------------------------
-        // NOTIFICATION DU JOUEUR CONCERNE
-        // --------------------------------------------------------
-
         public static void NotifyPlayer(
             byte targetId,
             byte team,
@@ -277,7 +237,6 @@ namespace FusionDarkRP
             {
                 PlayerID local = PlayerIDManager.LocalID;
 
-                // Cas où le joueur concerné est l'hôte.
                 if (local != null &&
                     local.IsValid &&
                     local.SmallID == targetId)
@@ -286,8 +245,6 @@ namespace FusionDarkRP
                     return;
                 }
 
-                // Les autres clients filtrent la notification
-                // grâce à l'identifiant du destinataire.
                 MessageRelay.RelayModule<
                     DarkRPNotificationHandler,
                     DarkRPNotificationData>(
@@ -338,10 +295,6 @@ namespace FusionDarkRP
             }
         }
 
-        // --------------------------------------------------------
-        // VALIDATION DES AUTORISATIONS COTE SERVEUR
-        // --------------------------------------------------------
-
         public static bool CanApply(
             PlayerID sender,
             PlayerID target,
@@ -352,11 +305,9 @@ namespace FusionDarkRP
                 !sender.IsValid || !target.IsValid)
                 return false;
 
-            // Le métier et le grade doivent exister dans le catalogue.
             if (!DarkRPJobs.IsValidAssignment(team, grade))
                 return false;
 
-            // L'hôte possède les droits d'administration complets.
             if (sender.IsHost)
                 return true;
 
@@ -366,15 +317,12 @@ namespace FusionDarkRP
             string targetTeam = GetMetadata(target, TeamKey);
             string targetGrade = GetMetadata(target, GradeKey);
 
-            // Un joueur peut uniquement agir sur son propre compte
-            // pour rejoindre un métier public ou redevenir citoyen.
             if (sender.SmallID == target.SmallID)
             {
                 return (team == 0 && grade == 0) ||
                        (team == 1 && grade == 1);
             }
 
-            // Protection du compte de l'hôte.
             if (target.IsHost)
                 return false;
 
@@ -384,8 +332,7 @@ namespace FusionDarkRP
 
             byte managerTeamId = DarkRPJobs.TeamId(managerTeam);
 
-            // Un citoyen ne peut pas gérer une faction.
-            if (managerTeamId == 0)
+            if (managerTeamId == 255 || managerTeamId == 0)
                 return false;
 
             byte managerGradeId = DarkRPJobs.GradeId(managerGrade);
@@ -398,16 +345,13 @@ namespace FusionDarkRP
             if (managerJob == null || managerRank < 0)
                 return false;
 
-            // Seul le grade le plus élevé dirige la faction.
             if (managerRank != managerJob.Grades.Length - 1)
                 return false;
 
             byte targetTeamId = DarkRPJobs.TeamId(targetTeam);
-
             byte targetGradeId = DarkRPJobs.GradeId(targetGrade);
 
-            // Un chef ne peut pas renvoyer un chef d'une autre faction.
-            if (targetTeamId != 0)
+            if (targetTeamId != 255 && targetTeamId != 0)
             {
                 DarkRPJob targetJob = DarkRPJobs.GetJob(targetTeamId);
 
@@ -421,7 +365,6 @@ namespace FusionDarkRP
                 }
             }
 
-            // Démission ou renvoi vers citoyen.
             if (team == 0 && grade == 0)
             {
                 if (targetTeamId != managerTeamId)
@@ -434,7 +377,6 @@ namespace FusionDarkRP
                        targetRank < managerRank;
             }
 
-            // Un responsable ne peut gérer que sa propre faction.
             if (team != managerTeamId)
                 return false;
 
@@ -445,15 +387,9 @@ namespace FusionDarkRP
 
             int newRank = DarkRPJobs.RankIndex(team, grade);
 
-            if (newRank < 0)
+            if (newRank < 0 || newRank >= managerRank)
                 return false;
 
-            // Le chef ne peut pas attribuer son propre grade.
-            if (newRank >= managerRank)
-                return false;
-
-            // Si la cible appartient déjà à cette faction,
-            // elle doit être moins gradée que le responsable.
             if (targetTeamId == managerTeamId)
             {
                 int oldRank = DarkRPJobs.RankIndex(
@@ -465,10 +401,6 @@ namespace FusionDarkRP
 
             return true;
         }
-
-        // --------------------------------------------------------
-        // LECTURE DES METADONNEES
-        // --------------------------------------------------------
 
         private static string GetMetadata(
             PlayerID player,
