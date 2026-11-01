@@ -1,4 +1,4 @@
-content = r'''using System;
+using System;
 using System.Reflection;
 using MelonLoader;
 using LabFusion.Network;
@@ -584,8 +584,3 @@ namespace FusionDarkRP
         }
     }
 }
-'''
-path = "/mnt/data/DarkRPNetwork-notifications.txt"
-with open(path, "w", encoding="utf-8") as f:
-    f.write(content)
-print(path, len(content), "caractères", content.count("\n")+1, "lignes")
