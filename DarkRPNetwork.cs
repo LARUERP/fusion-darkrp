@@ -244,6 +244,8 @@ namespace FusionDarkRP
         public const string GradeKey = "FusionDarkRP.Grade";
         private static bool registered;
 
+        public static bool HasServer => NetworkInfo.HasServer;
+
         public static void Register()
         {
             if (registered)
@@ -263,19 +265,19 @@ namespace FusionDarkRP
             }
         }
 
-        public static void Request(byte targetId, byte team, byte grade)
+        public static bool Request(byte targetId, byte team, byte grade)
         {
             if (!NetworkInfo.HasServer)
             {
                 MelonLogger.Warning("[Fusion DarkRP] Aucune connexion serveur.");
-                return;
+                return false;
             }
 
             if (!DarkRPJobs.IsValidAssignment(team, grade))
             {
                 MelonLogger.Warning(
                     "[Fusion DarkRP] Attribution invalide : " + team + "/" + grade);
-                return;
+                return false;
             }
 
             DarkRPRequestData data = new DarkRPRequestData
@@ -290,11 +292,13 @@ namespace FusionDarkRP
                 MelonLogger.Msg(
                     "[Fusion DarkRP] Demande envoyee : joueur " +
                     targetId + ", equipe " + team + ", grade " + grade);
+                return true;
             }
             catch (Exception ex)
             {
                 MelonLogger.Error(
                     "[Fusion DarkRP] Envoi de demande impossible : " + ex);
+                return false;
             }
         }
 
@@ -466,25 +470,17 @@ namespace FusionDarkRP
 
                         string username = player.GetType()
                             .GetProperty("Username")?.GetValue(player) as string;
-                        if (!string.IsNullOrWhiteSpace(username))
+                        if (IsUsablePlayerName(username))
                             return username;
                     }
                 }
 
                 PlayerID target = PlayerIDManager.GetPlayerID(id);
-                if (target != null && target.IsValid)
+                if (target != null && target.IsValid &&
+                    target.TryGetDisplayName(out string display) &&
+                    IsUsablePlayerName(display))
                 {
-                    MethodInfo method = target.GetType().GetMethod(
-                        "TryGetDisplayName",
-                        new[] { typeof(string).MakeByRefType() });
-                    if (method != null)
-                    {
-                        object[] args = { null };
-                        bool success = (bool)method.Invoke(target, args);
-                        if (success && args[0] is string display &&
-                            !string.IsNullOrWhiteSpace(display))
-                            return display;
-                    }
+                    return display;
                 }
             }
             catch (Exception ex)
@@ -494,6 +490,21 @@ namespace FusionDarkRP
             }
 
             return "Joueur ID " + id;
+        }
+
+        private static bool IsUsablePlayerName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return false;
+
+            string value = name.Trim();
+
+            return !string.Equals(value, "No Name",
+                       StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(value, "Unknown",
+                       StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(value, "Unknown Player",
+                       StringComparison.OrdinalIgnoreCase);
         }
 
         public static bool CanApply(
