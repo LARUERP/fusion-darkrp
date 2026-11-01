@@ -18,6 +18,7 @@ namespace FusionDarkRP
 
         private static bool menuCree;
         private static bool demandeInitialeEnvoyee;
+        private static DateTime debutAttenteMetadonnees = DateTime.MinValue;
         private static DateTime prochaineTentative;
 
         private static readonly Dictionary<byte, object> pagesJoueurs =
@@ -46,8 +47,17 @@ namespace FusionDarkRP
 
             prochaineTentative = DateTime.UtcNow.AddSeconds(3);
 
-            if (!demandeInitialeEnvoyee)
+            if (!DarkRPNetwork.HasServer)
+            {
+                // Une nouvelle session Fusion doit pouvoir refaire
+                // l'initialisation, meme apres une deconnexion.
+                demandeInitialeEnvoyee = false;
+                debutAttenteMetadonnees = DateTime.MinValue;
+            }
+            else if (!demandeInitialeEnvoyee)
+            {
                 InitialiserCitoyen();
+            }
 
             if (!menuCree)
                 CreerMenu();
@@ -79,13 +89,32 @@ namespace FusionDarkRP
                     !string.IsNullOrEmpty(grade))
                 {
                     demandeInitialeEnvoyee = true;
+                    debutAttenteMetadonnees = DateTime.MinValue;
                     return;
                 }
 
-                // Une seule demande initiale : ne pas spammer le serveur
-                // si la reponse metadata tarde a arriver.
-                DarkRPNetwork.Request(id, 0, 0);
-                demandeInitialeEnvoyee = true;
+                // Ne jamais ecraser une affectation existante si les deux
+                // metadonnees arrivent avec un leger decalage.
+                if (!string.IsNullOrEmpty(equipe) ||
+                    !string.IsNullOrEmpty(grade))
+                    return;
+
+                // Laisser a Fusion le temps de synchroniser les metadonnees
+                // avant d'initialiser un nouveau joueur en citoyen.
+                if (debutAttenteMetadonnees == DateTime.MinValue)
+                    debutAttenteMetadonnees = DateTime.UtcNow;
+
+                if (DateTime.UtcNow - debutAttenteMetadonnees <
+                    TimeSpan.FromSeconds(8))
+                    return;
+
+                // Ne valider l'initialisation que si la demande a bien ete
+                // envoyee a une session Fusion connectee.
+                if (DarkRPNetwork.Request(id, 0, 0))
+                {
+                    demandeInitialeEnvoyee = true;
+                    debutAttenteMetadonnees = DateTime.MinValue;
+                }
             }
             catch (Exception ex)
             {
@@ -999,28 +1028,17 @@ namespace FusionDarkRP
                             .GetProperty("Username")
                             ?.GetValue(networkPlayer) as string;
 
-                        if (!string.IsNullOrWhiteSpace(username))
+                        if (IsUsablePlayerName(username))
                             return username;
                     }
                 }
 
-                MethodInfo displayName = player.GetType().GetMethod(
-                    "TryGetDisplayName",
-                    new[] { typeof(string).MakeByRefType() }
+                string fusionDisplayName = TryGetFusionDisplayName(
+                    fusion, player
                 );
 
-                if (displayName != null)
-                {
-                    object[] args = { null };
-
-                    bool success = (bool)displayName.Invoke(player, args);
-
-                    if (success && args[0] is string display &&
-                        !string.IsNullOrWhiteSpace(display))
-                    {
-                        return display;
-                    }
-                }
+                if (IsUsablePlayerName(fusionDisplayName))
+                    return fusionDisplayName;
 
                 object metadata = player.GetType()
                     .GetProperty("Metadata")?.GetValue(player);
@@ -1031,14 +1049,14 @@ namespace FusionDarkRP
                         metadata, "Username"
                     );
 
-                    if (!string.IsNullOrWhiteSpace(username))
+                    if (IsUsablePlayerName(username))
                         return username;
 
                     string nickname = ReadPlayerNameProperty(
                         metadata, "Nickname"
                     );
 
-                    if (!string.IsNullOrWhiteSpace(nickname))
+                    if (IsUsablePlayerName(nickname))
                         return nickname;
                 }
 
@@ -1048,6 +1066,65 @@ namespace FusionDarkRP
             {
                 return "Joueur ID " + id;
             }
+        }
+
+        private static string TryGetFusionDisplayName(
+            Assembly fusion,
+            object player)
+        {
+            try
+            {
+                Type helperType = fusion?.GetType(
+                    "LabFusion.Network.MetadataHelper"
+                );
+
+                if (helperType == null || player == null)
+                    return null;
+
+                foreach (MethodInfo method in helperType.GetMethods(
+                    BindingFlags.Public | BindingFlags.Static))
+                {
+                    if (method.Name != "TryGetDisplayName")
+                        continue;
+
+                    ParameterInfo[] parameters = method.GetParameters();
+
+                    if (parameters.Length != 2 ||
+                        !parameters[0].ParameterType.IsInstanceOfType(player) ||
+                        !parameters[1].ParameterType.IsByRef ||
+                        parameters[1].ParameterType.GetElementType() != typeof(string))
+                        continue;
+
+                    object[] args = { player, null };
+                    object result = method.Invoke(null, args);
+
+                    if (result is bool success && success)
+                        return args[1] as string;
+                }
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning(
+                    "[Fusion DarkRP] Lecture du nom Fusion : " + ex.Message
+                );
+            }
+
+            return null;
+        }
+
+        private static bool IsUsablePlayerName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return false;
+
+            string value = name.Trim();
+
+            return !string.Equals(value, "No Name",
+                       StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(value, "Unknown",
+                       StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(value, "Unknown Player",
+                       StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ReadPlayerNameProperty(
