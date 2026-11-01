@@ -830,56 +830,27 @@ namespace FusionDarkRP
         {
             try
             {
-                // Lecture au moment du clic pour afficher les dernieres
-                // metadonnees recues du serveur.
+                // Relire les metadonnees au moment du clic afin d'utiliser
+                // les dernieres informations synchronisees par le serveur.
                 string team = MyTeam();
                 string grade = MyGrade();
-                byte teamId = TeamId(team);
 
-                if (string.IsNullOrEmpty(team))
-                    team = "Citoyen";
-                if (string.IsNullOrEmpty(grade))
-                    grade = "Citoyen";
+                byte teamId = DarkRPJobs.TeamId(team);
+                byte gradeId = DarkRPJobs.GradeId(grade);
 
-                object statusPage = NewPage(
-                    createPage,
-                    characterPage,
-                    "Mon statut actuel",
-                    green
-                );
+                if (teamId == 255 || gradeId == 255 ||
+                    !DarkRPJobs.IsValidAssignment(teamId, gradeId))
+                {
+                    teamId = 0;
+                    gradeId = 0;
+                }
 
-                AddInfo(
-                    createFunction,
-                    statusPage,
-                    "METIER : " + TeamDisplay(teamId),
-                    white
-                );
-
-                AddInfo(
-                    createFunction,
-                    statusPage,
-                    "GRADE : " + DisplayGrade(grade, teamId),
-                    white
-                );
-
-                AddInfo(
-                    createFunction,
-                    statusPage,
-                    "Equipe technique : " + team,
-                    white
-                );
-
-                AddInfo(
-                    createFunction,
-                    statusPage,
-                    "Grade technique : " + grade,
-                    white
-                );
+                DarkRPNetwork.ShowNotification(teamId, gradeId);
 
                 MelonLogger.Msg(
-                    "[Fusion DarkRP] Statut affiche : " +
-                    TeamDisplay(teamId) + " / " +
-                    DisplayGrade(grade, teamId)
+                    "[Fusion DarkRP] Statut notifie : " +
+                    DarkRPJobs.TeamDisplay(teamId) + " / " +
+                    DarkRPJobs.DisplayGrade(teamId, gradeId)
                 );
             }
             catch (Exception ex)
@@ -985,7 +956,7 @@ namespace FusionDarkRP
                 Assembly fusion = TrouverAssembly("LabFusion");
 
                 Type networkPlayerType = fusion?.GetType(
-                    "LabFusion.Player.NetworkPlayer"
+                    "LabFusion.Entities.NetworkPlayer"
                 );
 
                 PropertyInfo playersProperty = networkPlayerType?.GetProperty(
