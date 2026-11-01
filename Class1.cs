@@ -20,8 +20,11 @@ namespace FusionDarkRP
         private static bool demandeInitialeEnvoyee;
         private static DateTime prochaineTentative;
 
-        private static readonly Dictionary<byte, object> pagesJoueurs = new Dictionary<byte, object>();
-        private static readonly HashSet<byte> pagesGestionOuvertes = new HashSet<byte>();
+        private static readonly Dictionary<byte, object> pagesJoueurs =
+            new Dictionary<byte, object>();
+
+        private static readonly HashSet<byte> pagesGestionOuvertes =
+            new HashSet<byte>();
 
         public override void OnInitializeMelon()
         {
@@ -55,6 +58,7 @@ namespace FusionDarkRP
             try
             {
                 object local = ObtenirJoueurLocal();
+
                 if (local == null)
                     return;
 
@@ -62,13 +66,17 @@ namespace FusionDarkRP
                     local.GetType().GetProperty("SmallID").GetValue(local)
                 );
 
-                object metadata = local.GetType().GetProperty("Metadata").GetValue(local);
-                object data = metadata.GetType().GetProperty("Metadata").GetValue(metadata);
+                object metadata = local.GetType()
+                    .GetProperty("Metadata").GetValue(local);
+
+                object data = metadata.GetType()
+                    .GetProperty("Metadata").GetValue(metadata);
 
                 string equipe = ReadMetadata(data, TEAM_KEY);
                 string grade = ReadMetadata(data, GRADE_KEY);
 
-                if (!string.IsNullOrEmpty(equipe) && !string.IsNullOrEmpty(grade))
+                if (!string.IsNullOrEmpty(equipe) &&
+                    !string.IsNullOrEmpty(grade))
                 {
                     demandeInitialeEnvoyee = true;
                     return;
@@ -78,17 +86,20 @@ namespace FusionDarkRP
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning("[Fusion DarkRP] Initialisation citoyen : " + ex.Message);
+                MelonLogger.Warning(
+                    "[Fusion DarkRP] Initialisation citoyen : " + ex.Message
+                );
             }
         }
 
-        // CORRECTION : recuperation du joueur local avec PlayerIDManager.LocalID.
         private static object ObtenirJoueurLocal()
         {
             try
             {
                 Assembly fusion = TrouverAssembly("LabFusion");
-                Type manager = fusion?.GetType("LabFusion.Player.PlayerIDManager");
+                Type manager = fusion?.GetType(
+                    "LabFusion.Player.PlayerIDManager"
+                );
 
                 if (manager == null)
                     return null;
@@ -105,6 +116,7 @@ namespace FusionDarkRP
                 MelonLogger.Warning(
                     "[Fusion DarkRP] Recuperation joueur local : " + ex.Message
                 );
+
                 return null;
             }
         }
@@ -114,8 +126,11 @@ namespace FusionDarkRP
             try
             {
                 Assembly bone = TrouverAssembly("BoneLib");
+
                 Type pageType = bone?.GetType("BoneLib.BoneMenu.Page");
-                Type colorType = Type.GetType("UnityEngine.Color, UnityEngine.CoreModule");
+                Type colorType = Type.GetType(
+                    "UnityEngine.Color, UnityEngine.CoreModule"
+                );
 
                 if (pageType == null || colorType == null)
                     return;
@@ -130,11 +145,12 @@ namespace FusionDarkRP
 
                 MethodInfo createPage = null;
 
-                foreach (MethodInfo m in pageType.GetMethods())
+                foreach (MethodInfo method in pageType.GetMethods())
                 {
-                    if (m.Name == "CreatePage" && m.GetParameters().Length == 4)
+                    if (method.Name == "CreatePage" &&
+                        method.GetParameters().Length == 4)
                     {
-                        createPage = m;
+                        createPage = method;
                         break;
                     }
                 }
@@ -155,56 +171,155 @@ namespace FusionDarkRP
                 object cyan = ColorValue(colorType, "cyan");
                 object grey = ColorValue(colorType, "gray");
 
-                object main = NewPage(createPage, root, "Fusion DarkRP", yellow);
-                object jobs = NewPage(createPage, main, "Jobs publics", white);
-                object factions = NewPage(createPage, main, "Factions", grey);
-                object hierarchy = NewPage(createPage, main, "Hierarchies", white);
-                object players = NewPage(createPage, main, "Joueurs connectes", cyan);
-                object character = NewPage(createPage, main, "Mon personnage", green);
+                object main = NewPage(
+                    createPage, root, "Fusion DarkRP", yellow
+                );
 
-                AddFunction(createFunction, jobs, "Redevenir citoyen", white,
-                    () => RequestSelf(0, 0));
+                object jobs = NewPage(
+                    createPage, main, "Jobs publics", white
+                );
 
-                AddFunction(createFunction, jobs, "Devenir eboueur", green,
-                    () => RequestSelf(1, 1));
+                object factions = NewPage(
+                    createPage, main, "Factions", grey
+                );
 
-                AddInfo(createFunction, factions, "Banque : recrutement obligatoire", yellow);
-                AddInfo(createFunction, factions, "Mairie : recrutement obligatoire", cyan);
-                AddInfo(createFunction, factions, "Epicerie : recrutement obligatoire", green);
-                AddInfo(createFunction, factions, "Police : recrutement obligatoire", blue);
-                AddInfo(createFunction, factions, "Medecins : recrutement obligatoire", green);
-                AddInfo(createFunction, factions, "Les Marseillais : recrutement obligatoire", red);
-                AddInfo(createFunction, factions, "Les Parisiens : recrutement obligatoire", blue);
-                AddInfo(createFunction, factions, "Les Gens du Voyage : recrutement obligatoire", yellow);
+                object hierarchy = NewPage(
+                    createPage, main, "Hierarchies", white
+                );
 
-                AddHierarchy(createPage, createFunction, hierarchy, "Mairie", 3, yellow, white);
-                AddHierarchy(createPage, createFunction, hierarchy, "Police", 5, blue, white);
-                AddHierarchy(createPage, createFunction, hierarchy, "Medecins", 6, green, white);
-                AddHierarchy(createPage, createFunction, hierarchy, "Eboueurs", 1, green, white);
-                AddHierarchy(createPage, createFunction, hierarchy, "Banque", 2, yellow, white);
-                AddHierarchy(createPage, createFunction, hierarchy, "Epicerie", 4, green, white);
-                AddHierarchy(createPage, createFunction, hierarchy, "Marseillais", 7, red, white);
-                AddHierarchy(createPage, createFunction, hierarchy, "Parisiens", 8, blue, white);
-                AddHierarchy(createPage, createFunction, hierarchy, "Gens du Voyage", 9, yellow, white);
+                object players = NewPage(
+                    createPage, main, "Joueurs connectes", cyan
+                );
 
-                AddFunction(createFunction, players, "Actualiser les joueurs", cyan,
+                object character = NewPage(
+                    createPage, main, "Mon personnage", green
+                );
+
+                AddFunction(
+                    createFunction, jobs, "Redevenir citoyen", white,
+                    () => RequestSelf(0, 0)
+                );
+
+                AddFunction(
+                    createFunction, jobs, "Devenir eboueur", green,
+                    () => RequestSelf(1, 1)
+                );
+
+                AddInfo(
+                    createFunction, factions,
+                    "Banque : recrutement obligatoire", yellow
+                );
+
+                AddInfo(
+                    createFunction, factions,
+                    "Mairie : recrutement obligatoire", cyan
+                );
+
+                AddInfo(
+                    createFunction, factions,
+                    "Epicerie : recrutement obligatoire", green
+                );
+
+                AddInfo(
+                    createFunction, factions,
+                    "Police : recrutement obligatoire", blue
+                );
+
+                AddInfo(
+                    createFunction, factions,
+                    "Medecins : recrutement obligatoire", green
+                );
+
+                AddInfo(
+                    createFunction, factions,
+                    "Les Marseillais : recrutement obligatoire", red
+                );
+
+                AddInfo(
+                    createFunction, factions,
+                    "Les Parisiens : recrutement obligatoire", blue
+                );
+
+                AddInfo(
+                    createFunction, factions,
+                    "Les Gens du Voyage : recrutement obligatoire", yellow
+                );
+
+                AddHierarchy(
+                    createPage, createFunction, hierarchy,
+                    "Mairie", 3, yellow, white
+                );
+
+                AddHierarchy(
+                    createPage, createFunction, hierarchy,
+                    "Police", 5, blue, white
+                );
+
+                AddHierarchy(
+                    createPage, createFunction, hierarchy,
+                    "Medecins", 6, green, white
+                );
+
+                AddHierarchy(
+                    createPage, createFunction, hierarchy,
+                    "Eboueurs", 1, green, white
+                );
+
+                AddHierarchy(
+                    createPage, createFunction, hierarchy,
+                    "Banque", 2, yellow, white
+                );
+
+                AddHierarchy(
+                    createPage, createFunction, hierarchy,
+                    "Epicerie", 4, green, white
+                );
+
+                AddHierarchy(
+                    createPage, createFunction, hierarchy,
+                    "Marseillais", 7, red, white
+                );
+
+                AddHierarchy(
+                    createPage, createFunction, hierarchy,
+                    "Parisiens", 8, blue, white
+                );
+
+                AddHierarchy(
+                    createPage, createFunction, hierarchy,
+                    "Gens du Voyage", 9, yellow, white
+                );
+
+                AddFunction(
+                    createFunction, players,
+                    "Actualiser les joueurs", cyan,
                     () => RefreshPlayers(
                         createPage, createFunction, players,
                         white, yellow, green, blue, red, cyan
-                    ));
+                    )
+                );
 
-                AddFunction(createFunction, character, "Consulter mon metier et mon grade", white,
-                    ShowStatus);
+                AddFunction(
+                    createFunction, character,
+                    "Consulter mon metier et mon grade", white,
+                    ShowStatus
+                );
 
-                AddFunction(createFunction, character, "Demissionner", green,
-                    () => RequestSelf(0, 0));
+                AddFunction(
+                    createFunction, character,
+                    "Demissionner", green,
+                    () => RequestSelf(0, 0)
+                );
 
                 menuCree = true;
+
                 MelonLogger.Msg("[Fusion DarkRP] Menu cree.");
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("[Fusion DarkRP] Creation menu : " + ex);
+                MelonLogger.Error(
+                    "[Fusion DarkRP] Creation menu : " + ex
+                );
             }
         }
 
@@ -216,7 +331,10 @@ namespace FusionDarkRP
 
                 if (local == null)
                 {
-                    MelonLogger.Warning("[Fusion DarkRP] Joueur local introuvable.");
+                    MelonLogger.Warning(
+                        "[Fusion DarkRP] Joueur local introuvable."
+                    );
+
                     return;
                 }
 
@@ -225,11 +343,16 @@ namespace FusionDarkRP
                 );
 
                 DarkRPNetwork.Request(id, team, grade);
-                MelonLogger.Msg("[Fusion DarkRP] Demande envoyee au serveur.");
+
+                MelonLogger.Msg(
+                    "[Fusion DarkRP] Demande envoyee au serveur."
+                );
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("[Fusion DarkRP] Demande : " + ex);
+                MelonLogger.Error(
+                    "[Fusion DarkRP] Demande : " + ex
+                );
             }
         }
 
@@ -242,20 +365,24 @@ namespace FusionDarkRP
             object color,
             object white)
         {
-            object page = NewPage(createPage, parent, name, color);
+            object page = NewPage(
+                createPage, parent, name, color
+            );
+
             string[] ranks = Ranks(team);
 
             for (int i = 0; i < ranks.Length; i++)
             {
                 string gradeName = ranks[i];
+                string displayName = DisplayGrade(gradeName, team);
 
                 AddFunction(
                     createFunction,
                     page,
-                    DisplayGrade(gradeName),
+                    displayName,
                     white,
                     () => MelonLogger.Msg(
-                        "[Fusion DarkRP] Grade : " + DisplayGrade(gradeName)
+                        "[Fusion DarkRP] Grade : " + displayName
                     )
                 );
             }
@@ -292,7 +419,10 @@ namespace FusionDarkRP
                 pagesGestionOuvertes.Clear();
 
                 Assembly fusion = TrouverAssembly("LabFusion");
-                Type manager = fusion?.GetType("LabFusion.Player.PlayerIDManager");
+
+                Type manager = fusion?.GetType(
+                    "LabFusion.Player.PlayerIDManager"
+                );
 
                 FieldInfo field = manager?.GetField(
                     "PlayerIDs",
@@ -303,7 +433,10 @@ namespace FusionDarkRP
 
                 if (list == null)
                 {
-                    MelonLogger.Warning("[Fusion DarkRP] Liste des joueurs introuvable.");
+                    MelonLogger.Warning(
+                        "[Fusion DarkRP] Liste des joueurs introuvable."
+                    );
+
                     return;
                 }
 
@@ -317,7 +450,8 @@ namespace FusionDarkRP
                     );
 
                     bool isMe = ReadBool(player, "IsMe");
-                    string name = PlayerName(player);
+
+                    string name = PlayerName(player, id);
 
                     object playerPage = NewPage(
                         createPage,
@@ -329,17 +463,21 @@ namespace FusionDarkRP
                     string currentTeam = PlayerTeam(player);
                     string currentGrade = PlayerGrade(player);
 
+                    byte currentTeamId = TeamId(currentTeam);
+
                     AddInfo(
                         createFunction,
                         playerPage,
-                        "METIER : " + TeamDisplay(TeamId(currentTeam)),
+                        "METIER : " + TeamDisplay(currentTeamId),
                         yellow
                     );
 
                     AddInfo(
                         createFunction,
                         playerPage,
-                        "GRADE : " + DisplayGrade(currentGrade),
+                        "GRADE : " + DisplayGrade(
+                            currentGrade, currentTeamId
+                        ),
                         white
                     );
 
@@ -391,11 +529,15 @@ namespace FusionDarkRP
                     pagesJoueurs[id] = playerPage;
                 }
 
-                MelonLogger.Msg("[Fusion DarkRP] Liste des joueurs actualisee.");
+                MelonLogger.Msg(
+                    "[Fusion DarkRP] Liste des joueurs actualisee."
+                );
             }
             catch (Exception ex)
             {
-                MelonLogger.Error("[Fusion DarkRP] Actualisation joueurs : " + ex);
+                MelonLogger.Error(
+                    "[Fusion DarkRP] Actualisation joueurs : " + ex
+                );
             }
         }
 
@@ -421,6 +563,7 @@ namespace FusionDarkRP
                     MelonLogger.Warning(
                         "[Fusion DarkRP] Acces refuse : seuls l'hote et les chefs peuvent recruter."
                     );
+
                     return;
                 }
 
@@ -429,6 +572,7 @@ namespace FusionDarkRP
                     MelonLogger.Msg(
                         "[Fusion DarkRP] La page de gestion de ce joueur existe deja."
                     );
+
                     return;
                 }
 
@@ -564,7 +708,9 @@ namespace FusionDarkRP
             if (team == "GensDuVoyage")
                 color = yellow;
 
-            AddTargetTeam(cp, cf, parent, target, id, color, false);
+            AddTargetTeam(
+                cp, cf, parent, target, id, color, false
+            );
 
             AddFunction(
                 cf,
@@ -599,7 +745,8 @@ namespace FusionDarkRP
                     continue;
 
                 byte grade = GradeId(ranks[i]);
-                string label = DisplayGrade(ranks[i]);
+
+                string label = DisplayGrade(ranks[i], team);
 
                 AddFunction(
                     cf,
@@ -659,11 +806,13 @@ namespace FusionDarkRP
             string team = MyTeam();
             string grade = MyGrade();
 
+            byte teamId = TeamId(team);
+
             MelonLogger.Msg(
                 "[Fusion DarkRP] METIER : " +
-                TeamDisplay(TeamId(team)) +
+                TeamDisplay(teamId) +
                 " | GRADE : " +
-                DisplayGrade(grade)
+                DisplayGrade(grade, teamId)
             );
         }
 
@@ -678,7 +827,9 @@ namespace FusionDarkRP
                 page,
                 label,
                 color,
-                () => MelonLogger.Msg("[Fusion DarkRP] " + label)
+                () => MelonLogger.Msg(
+                    "[Fusion DarkRP] " + label
+                )
             );
         }
 
@@ -690,7 +841,12 @@ namespace FusionDarkRP
             Action action)
         {
             if (page != null)
-                method.Invoke(page, new object[] { label, color, action });
+            {
+                method.Invoke(
+                    page,
+                    new object[] { label, color, action }
+                );
+            }
         }
 
         private static object NewPage(
@@ -718,27 +874,69 @@ namespace FusionDarkRP
             switch (team)
             {
                 case 1:
-                    return new[] { "Eboueur", "ResponsableCollecte", "ChefEboueurs" };
+                    return new[] {
+                        "Eboueur",
+                        "ResponsableCollecte",
+                        "ChefEboueurs",
+                        "EboueurResponsableSecteur",
+                        "EboueurDirecteurProprete"
+                    };
 
                 case 2:
-                    return new[] { "Guichetier", "ConseillerBancaire", "DirecteurAdjointBanque", "DirecteurBanque" };
+                    return new[] {
+                        "Guichetier",
+                        "ConseillerBancaire",
+                        "DirecteurAdjointBanque",
+                        "DirecteurBanque",
+                        "DirecteurAgence"
+                    };
 
                 case 3:
-                    return new[] { "ConseillerMunicipal", "SecretaireMairie", "AdjointMaire", "Maire" };
+                    return new[] {
+                        "ConseillerMunicipal",
+                        "SecretaireMairie",
+                        "AdjointMaire",
+                        "PremierAdjointMairie",
+                        "Maire"
+                    };
 
                 case 4:
-                    return new[] { "Vendeur", "ResponsableRayon", "GerantAdjoint", "GerantEpicerie" };
+                    return new[] {
+                        "Vendeur",
+                        "ResponsableRayon",
+                        "GerantAdjoint",
+                        "GerantEpicerie",
+                        "GerantEpicerieTop"
+                    };
 
                 case 5:
-                    return new[] { "Policier", "Sergent", "LieutenantPolice", "CommissaireAdjoint", "ChefPolice" };
+                    return new[] {
+                        "Policier",
+                        "Sergent",
+                        "LieutenantPolice",
+                        "CommissaireAdjoint",
+                        "ChefPolice"
+                    };
 
                 case 6:
-                    return new[] { "Infirmier", "Chirurgien", "MedecinAdjoint", "MedecinChef" };
+                    return new[] {
+                        "MedecinAmbulancier",
+                        "Infirmier",
+                        "MedecinAdjoint",
+                        "Chirurgien",
+                        "MedecinChef"
+                    };
 
                 case 7:
                 case 8:
                 case 9:
-                    return new[] { "Membre", "Associe", "LieutenantGang", "BrasDroit", "Patron" };
+                    return new[] {
+                        "Membre",
+                        "Associe",
+                        "LieutenantGang",
+                        "BrasDroit",
+                        "Patron"
+                    };
 
                 default:
                     return new[] { "Citoyen" };
@@ -754,7 +952,13 @@ namespace FusionDarkRP
                 "Vendeur", "ResponsableRayon", "GerantAdjoint", "GerantEpicerie",
                 "Policier", "Sergent", "LieutenantPolice", "CommissaireAdjoint", "ChefPolice",
                 "Infirmier", "Chirurgien", "MedecinAdjoint", "MedecinChef",
-                "Membre", "Associe", "LieutenantGang", "BrasDroit", "Patron"
+                "Membre", "Associe", "LieutenantGang", "BrasDroit", "Patron",
+                "EboueurResponsableSecteur",
+                "EboueurDirecteurProprete",
+                "DirecteurAgence",
+                "PremierAdjointMairie",
+                "GerantEpicerieTop",
+                "MedecinAmbulancier"
             };
 
             for (byte i = 0; i < names.Length; i++)
@@ -769,8 +973,16 @@ namespace FusionDarkRP
         private static byte TeamId(string team)
         {
             string[] names = {
-                "Citoyen", "Eboueurs", "Banque", "Mairie", "Epicerie",
-                "Police", "Medecins", "Marseillais", "Parisiens", "GensDuVoyage"
+                "Citoyen",
+                "Eboueurs",
+                "Banque",
+                "Mairie",
+                "Epicerie",
+                "Police",
+                "Medecins",
+                "Marseillais",
+                "Parisiens",
+                "GensDuVoyage"
             };
 
             for (byte i = 0; i < names.Length; i++)
@@ -785,72 +997,235 @@ namespace FusionDarkRP
         private static string TeamDisplay(byte id)
         {
             string[] names = {
-                "Citoyen", "Eboueurs", "Banque", "Mairie", "Epicerie",
-                "Police", "Medecins", "Les Marseillais", "Les Parisiens",
+                "Citoyen",
+                "Eboueurs",
+                "Banque",
+                "Mairie",
+                "Epicerie",
+                "Police",
+                "Medecins",
+                "Les Marseillais",
+                "Les Parisiens",
                 "Les Gens du Voyage"
             };
 
             return id < names.Length ? names[id] : "Citoyen";
         }
 
-        private static string DisplayGrade(string grade)
+        private static string DisplayGrade(string grade, byte team)
         {
             if (string.IsNullOrEmpty(grade))
                 return "Citoyen";
 
-            switch (grade)
+            switch (team)
             {
-                case "ResponsableCollecte": return "Responsable collecte";
-                case "ChefEboueurs": return "Chef des eboueurs";
-                case "ConseillerBancaire": return "Conseiller bancaire";
-                case "DirecteurAdjointBanque": return "Directeur adjoint";
-                case "DirecteurBanque": return "Directeur banque";
-                case "ConseillerMunicipal": return "Conseiller municipal";
-                case "SecretaireMairie": return "Secretaire mairie";
-                case "AdjointMaire": return "Adjoint au maire";
-                case "GerantAdjoint": return "Gerant adjoint";
-                case "GerantEpicerie": return "Gerant epicerie";
-                case "LieutenantPolice": return "Lieutenant";
-                case "CommissaireAdjoint": return "Commissaire adjoint";
-                case "ChefPolice": return "Chef police";
-                case "MedecinAdjoint": return "Medecin adjoint";
-                case "MedecinChef": return "Medecin-chef";
-                case "LieutenantGang": return "Lieutenant";
-                case "BrasDroit": return "Bras droit";
-                default: return grade;
+                case 1:
+                    switch (grade)
+                    {
+                        case "Eboueur": return "Agent de collecte";
+                        case "ResponsableCollecte": return "Eboueur confirme";
+                        case "ChefEboueurs": return "Chef d'equipe";
+                        case "EboueurResponsableSecteur": return "Responsable de secteur";
+                        case "EboueurDirecteurProprete": return "Directeur de la proprete";
+                    }
+                    break;
+
+                case 2:
+                    switch (grade)
+                    {
+                        case "Guichetier": return "Agent d'accueil";
+                        case "ConseillerBancaire": return "Conseiller bancaire";
+                        case "DirecteurAdjointBanque": return "Gestionnaire de comptes";
+                        case "DirecteurBanque": return "Directeur adjoint";
+                        case "DirecteurAgence": return "Directeur d'agence";
+                    }
+                    break;
+
+                case 3:
+                    switch (grade)
+                    {
+                        case "ConseillerMunicipal": return "Conseiller municipal";
+                        case "SecretaireMairie": return "Secretaire general";
+                        case "AdjointMaire": return "Adjoint au maire";
+                        case "PremierAdjointMairie": return "Premier adjoint";
+                        case "Maire": return "Maire";
+                    }
+                    break;
+
+                case 4:
+                    switch (grade)
+                    {
+                        case "Vendeur": return "Employe polyvalent";
+                        case "ResponsableRayon": return "Vendeur";
+                        case "GerantAdjoint": return "Responsable des rayons";
+                        case "GerantEpicerie": return "Gerant adjoint";
+                        case "GerantEpicerieTop": return "Gerant";
+                    }
+                    break;
+
+                case 5:
+                    switch (grade)
+                    {
+                        case "Policier": return "Gardien de la paix";
+                        case "Sergent": return "Brigadier";
+                        case "LieutenantPolice": return "Lieutenant";
+                        case "CommissaireAdjoint": return "Commissaire";
+                        case "ChefPolice": return "Commissaire divisionnaire";
+                    }
+                    break;
+
+                case 6:
+                    switch (grade)
+                    {
+                        case "MedecinAmbulancier": return "Ambulancier";
+                        case "Infirmier": return "Infirmier";
+                        case "MedecinAdjoint": return "Medecin";
+                        case "Chirurgien": return "Chirurgien";
+                        case "MedecinChef": return "Chef de service";
+                    }
+                    break;
+
+                case 7:
+                    switch (grade)
+                    {
+                        case "Membre": return "Cagole";
+                        case "Associe": return "Guetteur";
+                        case "LieutenantGang": return "Vendeur";
+                        case "BrasDroit": return "Shooter";
+                        case "Patron": return "Chef de reseau";
+                    }
+                    break;
+
+                case 8:
+                    switch (grade)
+                    {
+                        case "Membre": return "Petit nouveau";
+                        case "Associe": return "Guetteur";
+                        case "LieutenantGang": return "Charbonneur";
+                        case "BrasDroit": return "Bras droit";
+                        case "Patron": return "Baron du quartier";
+                    }
+                    break;
+
+                case 9:
+                    switch (grade)
+                    {
+                        case "Membre": return "Nouveau de la famille";
+                        case "Associe": return "Voyageur";
+                        case "LieutenantGang": return "Ancien";
+                        case "BrasDroit": return "Chef de caravane";
+                        case "Patron": return "Patriarche";
+                    }
+                    break;
             }
+
+            return grade;
         }
 
-        // CORRECTION : essaie Username, puis Nickname, avant le nom de secours.
-        private static string PlayerName(object player)
+        private static string PlayerName(object player, byte id)
         {
             try
             {
+                Assembly fusion = TrouverAssembly("LabFusion");
+
+                Type networkPlayerType = fusion?.GetType(
+                    "LabFusion.Player.NetworkPlayer"
+                );
+
+                PropertyInfo playersProperty = networkPlayerType?.GetProperty(
+                    "Players",
+                    BindingFlags.Public | BindingFlags.Static
+                );
+
+                FieldInfo playersField = networkPlayerType?.GetField(
+                    "Players",
+                    BindingFlags.Public | BindingFlags.Static
+                );
+
+                IEnumerable networkPlayers =
+                    playersProperty?.GetValue(null) as IEnumerable ??
+                    playersField?.GetValue(null) as IEnumerable;
+
+                if (networkPlayers != null)
+                {
+                    foreach (object networkPlayer in networkPlayers)
+                    {
+                        if (networkPlayer == null)
+                            continue;
+
+                        object networkId = networkPlayer.GetType()
+                            .GetProperty("PlayerID")?.GetValue(networkPlayer);
+
+                        if (networkId == null)
+                            continue;
+
+                        byte networkSmallId = Convert.ToByte(
+                            networkId.GetType()
+                                .GetProperty("SmallID")
+                                ?.GetValue(networkId)
+                        );
+
+                        if (networkSmallId != id)
+                            continue;
+
+                        string username = networkPlayer.GetType()
+                            .GetProperty("Username")
+                            ?.GetValue(networkPlayer) as string;
+
+                        if (!string.IsNullOrWhiteSpace(username))
+                            return username;
+                    }
+                }
+
+                MethodInfo displayName = player.GetType().GetMethod(
+                    "TryGetDisplayName",
+                    new[] { typeof(string).MakeByRefType() }
+                );
+
+                if (displayName != null)
+                {
+                    object[] args = { null };
+
+                    bool success = (bool)displayName.Invoke(player, args);
+
+                    if (success && args[0] is string display &&
+                        !string.IsNullOrWhiteSpace(display))
+                    {
+                        return display;
+                    }
+                }
+
                 object metadata = player.GetType()
                     .GetProperty("Metadata")?.GetValue(player);
 
-                if (metadata == null)
-                    return "Joueur";
+                if (metadata != null)
+                {
+                    string username = ReadPlayerNameProperty(
+                        metadata, "Username"
+                    );
 
-                string username = ReadPlayerNameProperty(metadata, "Username");
+                    if (!string.IsNullOrWhiteSpace(username))
+                        return username;
 
-                if (!string.IsNullOrWhiteSpace(username))
-                    return username;
+                    string nickname = ReadPlayerNameProperty(
+                        metadata, "Nickname"
+                    );
 
-                string nickname = ReadPlayerNameProperty(metadata, "Nickname");
+                    if (!string.IsNullOrWhiteSpace(nickname))
+                        return nickname;
+                }
 
-                if (!string.IsNullOrWhiteSpace(nickname))
-                    return nickname;
-
-                return "Joueur";
+                return "Joueur ID " + id;
             }
             catch
             {
-                return "Joueur";
+                return "Joueur ID " + id;
             }
         }
 
-        private static string ReadPlayerNameProperty(object metadata, string propertyName)
+        private static string ReadPlayerNameProperty(
+            object metadata,
+            string propertyName)
         {
             try
             {
@@ -919,7 +1294,10 @@ namespace FusionDarkRP
                 new[] { typeof(string) }
             );
 
-            return method?.Invoke(metadata, new object[] { key }) as string;
+            return method?.Invoke(
+                metadata,
+                new object[] { key }
+            ) as string;
         }
 
         private static bool ReadBool(object obj, string name)
@@ -942,7 +1320,10 @@ namespace FusionDarkRP
             try
             {
                 Assembly fusion = TrouverAssembly("LabFusion");
-                Type type = fusion?.GetType("LabFusion.Network.NetworkInfo");
+
+                Type type = fusion?.GetType(
+                    "LabFusion.Network.NetworkInfo"
+                );
 
                 return (bool)type?.GetProperty(
                     "IsHost",
@@ -957,10 +1338,10 @@ namespace FusionDarkRP
 
         private static Assembly TrouverAssembly(string name)
         {
-            foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                if (a.GetName().Name == name)
-                    return a;
+                if (assembly.GetName().Name == name)
+                    return assembly;
             }
 
             return null;
