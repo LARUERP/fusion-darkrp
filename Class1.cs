@@ -379,7 +379,10 @@ namespace FusionDarkRP
             for (int i = 0; i < ranks.Length; i++)
             {
                 string gradeName = ranks[i];
-                string displayName = DisplayGrade(gradeName, team);
+                byte gradeId = DarkRPJobs.GradeId(gradeName);
+                string displayName = DarkRPJobs.DisplayGrade(team, gradeId);
+                if (string.IsNullOrEmpty(displayName))
+                    displayName = gradeName;
 
                 AddInfo(
                     createFunction,
@@ -757,8 +760,10 @@ namespace FusionDarkRP
                     continue;
 
                 byte grade = GradeId(ranks[i]);
+                if (!DarkRPJobs.IsValidAssignment(team, grade))
+                    continue;
 
-                string label = DisplayGrade(ranks[i], team);
+                string label = DarkRPJobs.DisplayGrade(team, grade);
 
                 AddFunction(
                     cf,
@@ -779,12 +784,15 @@ namespace FusionDarkRP
                 string.IsNullOrEmpty(grade))
                 return false;
 
-            string[] ranks = Ranks(TeamId(team));
+            byte teamId = TeamId(team);
+            byte gradeId = DarkRPJobs.GradeId(grade);
 
-            if (ranks.Length == 0)
+            if (!DarkRPJobs.IsValidAssignment(teamId, gradeId))
                 return false;
 
-            return grade == ranks[ranks.Length - 1];
+            DarkRPJob job = DarkRPJobs.GetJob(teamId);
+            return job != null &&
+                   DarkRPJobs.RankIndex(teamId, gradeId) == job.Grades.Length - 1;
         }
 
         private static string MyTeam()
@@ -937,145 +945,24 @@ namespace FusionDarkRP
 
         private static string[] Ranks(byte team)
         {
-            switch (team)
-            {
-                case 1:
-                    return new[] {
-                        "Eboueur",
-                        "ResponsableCollecte",
-                        "ChefEboueurs",
-                        "EboueurResponsableSecteur",
-                        "EboueurDirecteurProprete"
-                    };
-
-                case 2:
-                    return new[] {
-                        "Guichetier",
-                        "ConseillerBancaire",
-                        "DirecteurAdjointBanque",
-                        "DirecteurBanque",
-                        "DirecteurAgence"
-                    };
-
-                case 3:
-                    return new[] {
-                        "ConseillerMunicipal",
-                        "SecretaireMairie",
-                        "AdjointMaire",
-                        "PremierAdjointMairie",
-                        "Maire"
-                    };
-
-                case 4:
-                    return new[] {
-                        "Vendeur",
-                        "ResponsableRayon",
-                        "GerantAdjoint",
-                        "GerantEpicerie",
-                        "GerantEpicerieTop"
-                    };
-
-                case 5:
-                    return new[] {
-                        "Policier",
-                        "Sergent",
-                        "LieutenantPolice",
-                        "CommissaireAdjoint",
-                        "ChefPolice"
-                    };
-
-                case 6:
-                    return new[] {
-                        "MedecinAmbulancier",
-                        "Infirmier",
-                        "MedecinAdjoint",
-                        "Chirurgien",
-                        "MedecinChef"
-                    };
-
-                case 7:
-                case 8:
-                case 9:
-                    return new[] {
-                        "Membre",
-                        "Associe",
-                        "LieutenantGang",
-                        "BrasDroit",
-                        "Patron"
-                    };
-
-                default:
-                    return new[] { "Citoyen" };
-            }
+            DarkRPJob job = DarkRPJobs.GetJob(team);
+            return job == null ? new string[0] : job.Grades;
         }
 
         private static byte GradeId(string grade)
         {
-            string[] names = {
-                "Citoyen", "Eboueur", "ResponsableCollecte", "ChefEboueurs",
-                "Guichetier", "ConseillerBancaire", "DirecteurAdjointBanque", "DirecteurBanque",
-                "ConseillerMunicipal", "SecretaireMairie", "AdjointMaire", "Maire",
-                "Vendeur", "ResponsableRayon", "GerantAdjoint", "GerantEpicerie",
-                "Policier", "Sergent", "LieutenantPolice", "CommissaireAdjoint", "ChefPolice",
-                "Infirmier", "Chirurgien", "MedecinAdjoint", "MedecinChef",
-                "Membre", "Associe", "LieutenantGang", "BrasDroit", "Patron",
-                "EboueurResponsableSecteur",
-                "EboueurDirecteurProprete",
-                "DirecteurAgence",
-                "PremierAdjointMairie",
-                "GerantEpicerieTop",
-                "MedecinAmbulancier"
-            };
-
-            for (byte i = 0; i < names.Length; i++)
-            {
-                if (names[i] == grade)
-                    return i;
-            }
-
-            return 0;
+            return DarkRPJobs.GradeId(grade);
         }
 
         private static byte TeamId(string team)
         {
-            string[] names = {
-                "Citoyen",
-                "Eboueurs",
-                "Banque",
-                "Mairie",
-                "Epicerie",
-                "Police",
-                "Medecins",
-                "Marseillais",
-                "Parisiens",
-                "GensDuVoyage"
-            };
-
-            for (byte i = 0; i < names.Length; i++)
-            {
-                if (names[i] == team)
-                    return i;
-            }
-
-            return 0;
+            DarkRPJob job = DarkRPJobs.GetJob(team);
+            return job == null ? (byte)0 : job.Id;
         }
 
         private static string TeamDisplay(byte id)
         {
-            string[] names = {
-                "Citoyen",
-                "Eboueurs",
-                "Banque",
-                "Mairie",
-                "Epicerie",
-                "Police",
-                "Medecins",
-                "Les Marseillais",
-                "Les Parisiens",
-                "Les Gens du Voyage"
-            };
-
-            return id < names.Length ? names[id] : "Citoyen";
+            return DarkRPJobs.TeamDisplay(id);
         }
 
         private static string DisplayGrade(string grade, byte team)
@@ -1083,109 +970,12 @@ namespace FusionDarkRP
             if (string.IsNullOrEmpty(grade))
                 return "Citoyen";
 
-            switch (team)
-            {
-                case 1:
-                    switch (grade)
-                    {
-                        case "Eboueur": return "Agent de collecte";
-                        case "ResponsableCollecte": return "Eboueur confirme";
-                        case "ChefEboueurs": return "Chef d'equipe";
-                        case "EboueurResponsableSecteur": return "Responsable de secteur";
-                        case "EboueurDirecteurProprete": return "Directeur de la proprete";
-                    }
-                    break;
+            byte gradeId = DarkRPJobs.GradeId(grade);
+            if (gradeId == 255)
+                return grade;
 
-                case 2:
-                    switch (grade)
-                    {
-                        case "Guichetier": return "Agent d'accueil";
-                        case "ConseillerBancaire": return "Conseiller bancaire";
-                        case "DirecteurAdjointBanque": return "Gestionnaire de comptes";
-                        case "DirecteurBanque": return "Directeur adjoint";
-                        case "DirecteurAgence": return "Directeur d'agence";
-                    }
-                    break;
-
-                case 3:
-                    switch (grade)
-                    {
-                        case "ConseillerMunicipal": return "Conseiller municipal";
-                        case "SecretaireMairie": return "Secretaire general";
-                        case "AdjointMaire": return "Adjoint au maire";
-                        case "PremierAdjointMairie": return "Premier adjoint";
-                        case "Maire": return "Maire";
-                    }
-                    break;
-
-                case 4:
-                    switch (grade)
-                    {
-                        case "Vendeur": return "Employe polyvalent";
-                        case "ResponsableRayon": return "Vendeur";
-                        case "GerantAdjoint": return "Responsable des rayons";
-                        case "GerantEpicerie": return "Gerant adjoint";
-                        case "GerantEpicerieTop": return "Gerant";
-                    }
-                    break;
-
-                case 5:
-                    switch (grade)
-                    {
-                        case "Policier": return "Gardien de la paix";
-                        case "Sergent": return "Brigadier";
-                        case "LieutenantPolice": return "Lieutenant";
-                        case "CommissaireAdjoint": return "Commissaire";
-                        case "ChefPolice": return "Commissaire divisionnaire";
-                    }
-                    break;
-
-                case 6:
-                    switch (grade)
-                    {
-                        case "MedecinAmbulancier": return "Ambulancier";
-                        case "Infirmier": return "Infirmier";
-                        case "MedecinAdjoint": return "Medecin";
-                        case "Chirurgien": return "Chirurgien";
-                        case "MedecinChef": return "Chef de service";
-                    }
-                    break;
-
-                case 7:
-                    switch (grade)
-                    {
-                        case "Membre": return "Cagole";
-                        case "Associe": return "Guetteur";
-                        case "LieutenantGang": return "Vendeur";
-                        case "BrasDroit": return "Shooter";
-                        case "Patron": return "Chef de reseau";
-                    }
-                    break;
-
-                case 8:
-                    switch (grade)
-                    {
-                        case "Membre": return "Petit nouveau";
-                        case "Associe": return "Guetteur";
-                        case "LieutenantGang": return "Charbonneur";
-                        case "BrasDroit": return "Bras droit";
-                        case "Patron": return "Baron du quartier";
-                    }
-                    break;
-
-                case 9:
-                    switch (grade)
-                    {
-                        case "Membre": return "Nouveau de la famille";
-                        case "Associe": return "Voyageur";
-                        case "LieutenantGang": return "Ancien";
-                        case "BrasDroit": return "Chef de caravane";
-                        case "Patron": return "Patriarche";
-                    }
-                    break;
-            }
-
-            return grade;
+            string display = DarkRPJobs.DisplayGrade(team, gradeId);
+            return string.IsNullOrEmpty(display) ? grade : display;
         }
 
         private static string PlayerName(object player, byte id)
