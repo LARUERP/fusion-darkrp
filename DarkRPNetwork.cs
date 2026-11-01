@@ -442,7 +442,7 @@ namespace FusionDarkRP
                     if (assembly.GetName().Name == "LabFusion")
                         fusion = assembly;
 
-                Type type = fusion?.GetType("LabFusion.Player.NetworkPlayer");
+                Type type = fusion?.GetType("LabFusion.Entities.NetworkPlayer");
                 PropertyInfo property = type?.GetProperty(
                     "Players", BindingFlags.Public | BindingFlags.Static);
                 FieldInfo field = type?.GetField(
